@@ -24,6 +24,8 @@ import { Fragment, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { BalanceList } from '~/components/Expense/BalanceList';
 import { ExpenseList } from '~/components/Expense/ExpenseList';
+import { CurrencyPicker } from '~/components/AddExpense/CurrencyPicker';
+import { parseCurrencyCode } from '~/lib/currency';
 import AddMembers from '~/components/group/AddMembers';
 import GroupMyBalance from '~/components/group/GroupMyBalance';
 import NoMembers from '~/components/group/NoMembers';
@@ -223,16 +225,16 @@ const BalancePage: NextPageWithUser<{
                     <p className="text-sm text-gray-400">
                       {t('group_details.group_info.default_currency', 'Default currency')}
                     </p>
-                    <select
-                      className="rounded-md border border-gray-600 bg-transparent px-2 py-1 text-sm"
-                      defaultValue={groupDetailQuery.data?.defaultCurrency ?? 'USD'}
-                      disabled={isArchived}
-                      onChange={async (e) => {
+                    <CurrencyPicker
+                      currentCurrency={parseCurrencyCode(
+                        groupDetailQuery.data?.defaultCurrency ?? 'USD',
+                      )}
+                      onCurrencyPick={async (currency) => {
                         try {
                           await updateGroupDetailsMutation.mutateAsync({
                             groupId,
                             name: groupDetailQuery.data?.name ?? '',
-                            defaultCurrency: e.target.value,
+                            defaultCurrency: currency,
                           });
                           toast.success(t('ui.messages.currency_updated', 'Currency updated'), {
                             duration: 1500,
@@ -242,50 +244,7 @@ const BalancePage: NextPageWithUser<{
                           toast.error(t('errors.setting_update_failed'));
                         }
                       }}
-                    >
-                      {[
-                        'USD',
-                        'EUR',
-                        'GBP',
-                        'CHF',
-                        'JPY',
-                        'CAD',
-                        'AUD',
-                        'CNY',
-                        'INR',
-                        'BRL',
-                        'MXN',
-                        'SEK',
-                        'NOK',
-                        'DKK',
-                        'PLN',
-                        'CZK',
-                        'HUF',
-                        'RON',
-                        'BGN',
-                        'HRK',
-                        'TRY',
-                        'ZAR',
-                        'KRW',
-                        'SGD',
-                        'HKD',
-                        'NZD',
-                        'THB',
-                        'PHP',
-                        'IDR',
-                        'MYR',
-                        'VND',
-                        'ARS',
-                        'CLP',
-                        'COP',
-                        'PEN',
-                        'UYU',
-                      ].map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 )}
 
