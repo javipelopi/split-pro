@@ -243,6 +243,9 @@ const BalancePage: NextPageWithUser<{
                                   { groupId, userId: groupUser.userId, weight },
                                   {
                                     onSuccess: () => {
+                                      toast.success(t('ui.messages.weight_updated'), {
+                                        duration: 1500,
+                                      });
                                       void groupDetailQuery.refetch();
                                     },
                                     onError: () => {
@@ -255,48 +258,55 @@ const BalancePage: NextPageWithUser<{
                             }}
                           />
                         </div>
-                        {groupUser.userId === groupDetailQuery.data?.userId ? (
-                          <p className="text-sm text-gray-400">{t('actors.owner')}</p>
-                        ) : (
-                          isAdmin &&
-                          (() => {
-                            const canLeave = !groupDetailQuery.data?.groupBalances.find(
-                              (b) => 0n !== b.amount && b.userId === groupUser.userId,
-                            );
+                        <div className="flex w-14 justify-center">
+                          {groupUser.userId === groupDetailQuery.data?.userId ? (
+                            <p className="text-sm text-gray-400">{t('actors.owner')}</p>
+                          ) : (
+                            isAdmin &&
+                            (() => {
+                              const canLeave = !groupDetailQuery.data?.groupBalances.find(
+                                (b) => 0n !== b.amount && b.userId === groupUser.userId,
+                              );
 
-                            return (
-                              <SimpleConfirmationDialog
-                                title={
-                                  canLeave
-                                    ? t('group_details.group_info.remove_member_details.title')
-                                    : ''
-                                }
-                                description={
-                                  canLeave
-                                    ? t('group_details.group_info.remove_member_details.can_remove')
-                                    : t(
-                                        'group_details.group_info.remove_member_details.cant_remove',
-                                      )
-                                }
-                                hasPermission={canLeave}
-                                onConfirm={() => onGroupLeave(groupUser.userId)}
-                                loading={leaveGroupMutation.isPending}
-                                variant="destructive"
-                              >
-                                <Button
-                                  variant="ghost"
-                                  className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                              return (
+                                <SimpleConfirmationDialog
+                                  title={
+                                    canLeave
+                                      ? t('group_details.group_info.remove_member_details.title')
+                                      : ''
+                                  }
+                                  description={
+                                    canLeave
+                                      ? t(
+                                          'group_details.group_info.remove_member_details.can_remove',
+                                        )
+                                      : t(
+                                          'group_details.group_info.remove_member_details.cant_remove',
+                                        )
+                                  }
+                                  hasPermission={canLeave}
+                                  onConfirm={() => onGroupLeave(groupUser.userId)}
+                                  loading={leaveGroupMutation.isPending}
+                                  variant="destructive"
                                 >
-                                  <X className="mr-2 h-5 w-5" />
-                                </Button>
-                              </SimpleConfirmationDialog>
-                            );
-                          })()
-                        )}
+                                  <Button
+                                    variant="ghost"
+                                    className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                                  >
+                                    <X className="mr-2 h-5 w-5" />
+                                  </Button>
+                                </SimpleConfirmationDialog>
+                              );
+                            })()
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  {t('group_details.group_info.weight_hint')}
+                </p>
               </>
               {groupDetailQuery.data?.createdAt && (
                 <div className="mt-8">
@@ -354,6 +364,15 @@ const BalancePage: NextPageWithUser<{
                       }}
                     />
                   </Label>
+                  <Link href={`/import-csv?groupId=${groupId}`}>
+                    <Button
+                      variant="ghost"
+                      className="justify-start p-0 text-left"
+                      disabled={isArchived}
+                    >
+                      <FileSpreadsheet className="mr-2 size-4" /> {t('import_csv.title')}
+                    </Button>
+                  </Link>
                   {isAdmin ? (
                     <SimpleConfirmationDialog
                       title={
@@ -457,12 +476,6 @@ const BalancePage: NextPageWithUser<{
                   <ArrowLeftRight className="size-4 text-gray-400" /> {t('actions.record_transfer')}
                 </Button>
               </RecordTransfer>
-
-              <Link href={`/import-csv?groupId=${groupId}`}>
-                <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
-                  <FileSpreadsheet className="size-4 text-gray-400" /> {t('import_csv.title')}
-                </Button>
-              </Link>
 
               <AddMembers group={groupDetailQuery.data} enableSendingInvites={enableSendingInvites}>
                 <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>

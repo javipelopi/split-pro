@@ -294,7 +294,8 @@
         "title": "Are you absolutely sure?"
       },
       "simplify_debts": "Simplify debts",
-      "title": "Group info"
+      "title": "Group info",
+      "weight_hint": "Weights determine how expenses are split. Higher weight = larger share."
     },
     "group_statistics": {
       "first_expense": "First expense",
@@ -430,7 +431,11 @@
     "share_text": "Check out SplitPro. It's an open source free alternative for Splitwise",
     "show_all_currencies": "Show all currencies",
     "today": "Today",
-    "in_group": "In group"
+    "in_group": "In group",
+    "messages": {
+      "group_name_updated": "Updated group name",
+      "weight_updated": "Weight updated"
+    }
   },
   "import_csv": {
     "title": "Import CSV",

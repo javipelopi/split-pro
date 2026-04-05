@@ -43,7 +43,11 @@ export interface AddExpenseState {
     setGroup: (group: Group | undefined) => void;
     addOrUpdateParticipant: (user: Participant) => void;
     setSplitShare: (splitType: SplitType, userId: number, share: bigint) => void;
-    setParticipants: (participants: Participant[], splitType?: SplitType) => void;
+    setParticipants: (
+      participants: Participant[],
+      splitType?: SplitType,
+      weightMap?: Record<number, bigint>,
+    ) => void;
     removeParticipant: (userId: number) => void;
     removeLastParticipant: () => void;
     setCurrency: (currency: CurrencyCode) => void;
@@ -129,10 +133,14 @@ export const useAddExpenseStore = create<AddExpenseState>()((set) => ({
         }
         return calculateParticipantSplit({ ...state, participants, splitShares });
       }),
-    setParticipants: (participants, splitType) =>
+    setParticipants: (participants, splitType, weightMap) =>
       set((state) => {
         const splitShares = participants.reduce<SplitShares>((res, p) => {
-          res[p.id] = initSplitShares();
+          const shares = initSplitShares();
+          if (weightMap?.[p.id] !== undefined) {
+            shares[SplitType.EQUAL] = weightMap[p.id]!;
+          }
+          res[p.id] = shares;
           return res;
         }, {});
         if (splitType) {

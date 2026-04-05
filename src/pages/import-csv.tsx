@@ -104,7 +104,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     return group?.group.defaultCurrency ?? 'USD';
   }, [groupsQuery.data, selectedGroupId]);
 
-  // Extract unique payer names from CSV
+  // Extract unique payer names from CSV (split colon-separated multi-payer values)
   const uniquePayerNames = useMemo(() => {
     if (null === columnMapping.payer) {
       return [];
@@ -113,7 +113,12 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     rows.forEach((row) => {
       const name = row[columnMapping.payer!]?.trim();
       if (name && '' !== name) {
-        names.add(name);
+        name.split(':').forEach((n) => {
+          const trimmed = n.trim();
+          if (trimmed) {
+            names.add(trimmed);
+          }
+        });
       }
     });
     return [...names].sort();
@@ -143,7 +148,20 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
 
         const payerName =
           null !== columnMapping.payer ? (row[columnMapping.payer]?.trim() ?? null) : null;
-        const payerUserId = payerName ? (payerMapping[payerName] ?? null) : null;
+        let payerUserId: number | null = null;
+        if (payerName) {
+          if (payerName.includes(':')) {
+            for (const n of payerName.split(':')) {
+              const mapped = payerMapping[n.trim()];
+              if (mapped) {
+                payerUserId = mapped;
+                break;
+              }
+            }
+          } else {
+            payerUserId = payerMapping[payerName] ?? null;
+          }
+        }
 
         const category =
           null !== columnMapping.category

@@ -1,6 +1,6 @@
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { UserPlusIcon } from '@heroicons/react/24/solid';
-import { type Group, type GroupUser, SplitType, type User } from '@prisma/client';
+import { type Group, type GroupUser, type User } from '@prisma/client';
 import { SendIcon } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Image from 'next/image';
@@ -20,14 +20,8 @@ export const SelectUserOrGroup: React.FC<{
   const nameOrEmail = useAddExpenseStore((s) => s.nameOrEmail);
   const participants = useAddExpenseStore((s) => s.participants);
   const group = useAddExpenseStore((s) => s.group);
-  const {
-    addOrUpdateParticipant,
-    removeParticipant,
-    setNameOrEmail,
-    setGroup,
-    setParticipants,
-    setSplitShare,
-  } = useAddExpenseStore((s) => s.actions);
+  const { addOrUpdateParticipant, removeParticipant, setNameOrEmail, setGroup, setParticipants } =
+    useAddExpenseStore((s) => s.actions);
 
   const friendsQuery = api.user.getFriends.useQuery();
   const groupsQuery = api.group.getAllGroups.useQuery();
@@ -86,18 +80,21 @@ export const SelectUserOrGroup: React.FC<{
       setGroup(group);
       const { currentUser } = useAddExpenseStore.getState();
       if (currentUser) {
-        setParticipants([
-          currentUser,
-          ...group.groupUsers.map((gu) => gu.user).filter((u) => u.id !== currentUser.id),
-        ]);
-        // Pre-fill EQUAL split weights from group member weights
-        for (const gu of group.groupUsers) {
-          setSplitShare(SplitType.EQUAL, gu.userId, BigInt(gu.weight));
-        }
+        const weightMap = Object.fromEntries(
+          group.groupUsers.map((gu) => [gu.userId, BigInt(gu.weight)]),
+        );
+        setParticipants(
+          [
+            currentUser,
+            ...group.groupUsers.map((gu) => gu.user).filter((u) => u.id !== currentUser.id),
+          ],
+          undefined,
+          weightMap,
+        );
       }
       setNameOrEmail('');
     },
-    [setGroup, setParticipants, setNameOrEmail, setSplitShare],
+    [setGroup, setParticipants, setNameOrEmail],
   );
 
   const handleAddEmailClickFalse = useCallback(() => onAddEmailClick(false), [onAddEmailClick]);
