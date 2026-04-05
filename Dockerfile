@@ -40,7 +40,10 @@ RUN apk update \
 COPY --from=base /app/.next/standalone ./
 COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
-COPY --from=base /app/prisma/migrations ./prisma/migrations
+COPY --from=base /app/prisma ./prisma
+
+# Install prisma CLI for running migrations at startup
+RUN npm install -g prisma
 
 # set this so it throws error where starting server
 ENV SKIP_ENV_VALIDATION="false"

@@ -39,7 +39,9 @@ for file_var in $file_vars; do
 done
 
 
-echo "Starting web server"
+echo "Running database migrations"
+prisma migrate deploy --schema=./prisma/schema.prisma || echo "Migration warning: check logs above"
 
+echo "Starting web server"
 node server.js
 
