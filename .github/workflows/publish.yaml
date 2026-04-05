@@ -55,6 +55,11 @@ jobs:
             echo "channel=next" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Stamp version in package.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
