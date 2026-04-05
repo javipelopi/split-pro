@@ -61,6 +61,8 @@ jobs:
           context: .
           push: true
           platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
           tags: |

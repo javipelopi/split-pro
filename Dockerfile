@@ -14,11 +14,15 @@ WORKDIR /app
 RUN npm i -g corepack@latest && corepack enable
 COPY package.json pnpm-lock.yaml prisma/ ./
 
-RUN pnpm install --frozen-lockfile
+# Cache pnpm store across builds — avoids re-downloading packages
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN pnpm build
+# Cache Next.js build artifacts across builds — avoids full recompilation
+RUN --mount=type=cache,target=/app/.next/cache \
+    pnpm build
 
 FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS release
 
