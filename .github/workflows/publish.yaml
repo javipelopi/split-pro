@@ -3,27 +3,17 @@ name: Publish Docker
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to run the action on'
-        default: 'main'
-        required: true
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  build_and_publish_platform_containers:
-    name: Build and publish platform containers
-    runs-on: ${{ matrix.os }}
-    permissions:
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - warp-ubuntu-latest-x64-2x
-          - warp-ubuntu-latest-arm64-2x
-
+  build-and-push:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,131 +22,43 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Build the docker image
-        env:
-          BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
-        run: |
-          APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
-          GIT_SHA="$(git rev-parse HEAD)"
-          if [[ "$APP_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            CHANNEL=latest
-          else
-            CHANNEL=next
-          fi
-
-          docker build \
-            --progress=plain \
-            --build-arg APP_VERSION="$APP_VERSION" \
-            -t "ossapps/splitpro-$BUILD_PLATFORM:$CHANNEL" \
-            -t "ossapps/splitpro-$BUILD_PLATFORM:$GIT_SHA" \
-            -t "ossapps/splitpro-$BUILD_PLATFORM:$APP_VERSION" \
-            -t "ghcr.io/oss-apps/splitpro-$BUILD_PLATFORM:$CHANNEL" \
-            -t "ghcr.io/oss-apps/splitpro-$BUILD_PLATFORM:$GIT_SHA" \
-            -t "ghcr.io/oss-apps/splitpro-$BUILD_PLATFORM:$APP_VERSION" \
-            .
-
-      - name: Push the docker image to DockerHub
-        run: docker push --all-tags "ossapps/splitpro-$BUILD_PLATFORM"
-        env:
-          BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
-
-      - name: Push the docker image to GitHub Container Registry
-        run: docker push --all-tags "ghcr.io/oss-apps/splitpro-$BUILD_PLATFORM"
-        env:
-          BUILD_PLATFORM: ${{ matrix.os == 'warp-ubuntu-latest-arm64-2x' && 'arm64' || 'amd64' }}
-
-  create_and_publish_manifest:
-    name: Create and publish manifest
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    needs: build_and_publish_platform_containers
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push DockerHub manifest
+      - name: Extract version
+        id: version
         run: |
-          APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
-          GIT_SHA="$(git rev-parse HEAD)"
-          if [[ "$APP_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            CHANNEL=latest
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
           else
-            CHANNEL=next
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+          # Channel: "latest" for semver tags, "next" for everything else
+          if [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "channel=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=next" >> "$GITHUB_OUTPUT"
           fi
 
-          docker manifest create \
-            ossapps/splitpro:$CHANNEL \
-            --amend ossapps/splitpro-amd64:$CHANNEL \
-            --amend ossapps/splitpro-arm64:$CHANNEL \
-
-          docker manifest create \
-            ossapps/splitpro:$GIT_SHA \
-            --amend ossapps/splitpro-amd64:$GIT_SHA \
-            --amend ossapps/splitpro-arm64:$GIT_SHA \
-
-          docker manifest create \
-            ossapps/splitpro:$APP_VERSION \
-            --amend ossapps/splitpro-amd64:$APP_VERSION \
-            --amend ossapps/splitpro-arm64:$APP_VERSION \
-
-          docker manifest push ossapps/splitpro:$CHANNEL
-          docker manifest push ossapps/splitpro:$GIT_SHA
-          docker manifest push ossapps/splitpro:$APP_VERSION
-
-      - name: Create and push Github Container Registry manifest
-        run: |
-          APP_VERSION="$(git name-rev --tags --name-only $(git rev-parse HEAD) | head -n 1 | sed 's/\^0//')"
-          GIT_SHA="$(git rev-parse HEAD)"
-          if [[ "$APP_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            CHANNEL=latest
-          else
-            CHANNEL=next
-          fi
-
-          docker manifest create \
-            ghcr.io/oss-apps/splitpro:$CHANNEL \
-            --amend ghcr.io/oss-apps/splitpro-amd64:$CHANNEL \
-            --amend ghcr.io/oss-apps/splitpro-arm64:$CHANNEL \
-
-          docker manifest create \
-            ghcr.io/oss-apps/splitpro:$GIT_SHA \
-            --amend ghcr.io/oss-apps/splitpro-amd64:$GIT_SHA \
-            --amend ghcr.io/oss-apps/splitpro-arm64:$GIT_SHA \
-
-          docker manifest create \
-            ghcr.io/oss-apps/splitpro:$APP_VERSION \
-            --amend ghcr.io/oss-apps/splitpro-amd64:$APP_VERSION \
-            --amend ghcr.io/oss-apps/splitpro-arm64:$APP_VERSION \
-
-          docker manifest push ghcr.io/oss-apps/splitpro:$CHANNEL
-          docker manifest push ghcr.io/oss-apps/splitpro:$GIT_SHA
-          docker manifest push ghcr.io/oss-apps/splitpro:$APP_VERSION
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.channel }}
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.sha }}
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
