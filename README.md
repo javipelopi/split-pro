@@ -60,13 +60,12 @@ Translations are managed in Weblate. When a language reaches 100%, it is enabled
 
 ### 6) Authentication
 
-SplitPro uses NextAuth. At least one provider must be configured.
+SplitPro uses NextAuth with local username/password authentication (Credentials provider). No external auth services or email delivery required — perfect for self-hosted instances.
 
-- Email sign-in (magic link)
-- OAuth (Google)
-- OIDC (Authentik, Keycloak, or custom OIDC)
+- **Local accounts** (username/password with bcrypt) — default
+- OIDC (Authentik, Keycloak, or custom OIDC) — optional, for SSO
 
-Username/password login is not supported. You can lock down an instance by disabling signups and invites. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) and [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) for details.
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) and [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) for details.
 
 ### 7) Currency conversions
 
