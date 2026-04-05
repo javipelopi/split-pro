@@ -61,9 +61,6 @@ importers:
       '@trpc/server':
         specifier: ^11.2.0
         version: 11.8.0(typescript@5.7.3)
-      bcryptjs:
-        specifier: ^3.0.3
-        version: 3.0.3
       boring-avatars:
         specifier: ^1.10.1
         version: 1.11.2
@@ -176,9 +173,6 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.1.10
         version: 4.1.18
-      '@types/bcryptjs':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@types/formidable':
         specifier: ^3.4.6
         version: 3.4.6
@@ -2195,10 +2189,6 @@ packages:
   '@types/babel__traverse@7.20.7':
     resolution: {integrity: sha512-dkO5fhS7+/oos4ciWxyEyjWe48zmG6wbCheo/G2ZnHx4fs3EU6YC6UM8rk56gAjNJ9P3MTH2jo5jb92/K6wbng==}
 
-  '@types/bcryptjs@3.0.0':
-    resolution: {integrity: sha512-WRZOuCuaz8UcZZE4R5HXTco2goQSI2XxjGY3hbM/xDvwmqFWd4ivooImsMx65OKM6CtNKbnZ5YL+YwAwK7c1dg==}
-    deprecated: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
-
   '@types/formidable@3.4.6':
     resolution: {integrity: sha512-LI4Hk+KNsM5q7br4oMVoaWeb+gUqJpz1N8+Y2Q6Cz9cVH33ybahRKUWaRmMboVlkwSbOUGgwc/pEkS7yMSzoWg==}
 
@@ -2486,10 +2476,6 @@ packages:
 
   baseline-browser-mapping@2.9.9:
     resolution: {integrity: sha512-V8fbOCSeOFvlDj7LLChUcqbZrdKD9RU/VR260piF1790vT0mfLSwGc/Qzxv3IqiTukOpNtItePa0HBpMAj7MDg==}
-    hasBin: true
-
-  bcryptjs@3.0.3:
-    resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
     hasBin: true
 
   bn.js@5.2.3:
@@ -6298,10 +6284,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.28.2
 
-  '@types/bcryptjs@3.0.0':
-    dependencies:
-      bcryptjs: 3.0.3
-
   '@types/formidable@3.4.6':
     dependencies:
       '@types/node': 22.19.3
@@ -6573,8 +6555,6 @@ snapshots:
   balanced-match@1.0.2: {}
 
   baseline-browser-mapping@2.9.9: {}
-
-  bcryptjs@3.0.3: {}
 
   bn.js@5.2.3: {}
 
