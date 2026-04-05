@@ -91,33 +91,12 @@ export default function Home() {
                 <span className="text-primary font-bold">{t('hero.title_highlight')}</span>.
               </h1>
               <h2 className="mt-5 text-gray-300 lg:mt-8 lg:text-lg">
-                {t('hero.subtitle_part1')}{' '}
-                <a
-                  className="text-primary hover:underline"
-                  href="https://github.com/oss-apps/split-pro"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('hero.subtitle_link')}
-                </a>{' '}
-                {t('hero.subtitle_part2')}
+                {t('hero.subtitle_part1')} {t('hero.subtitle_part2')}
               </h2>
               <div className="mt-10 flex flex-col gap-6 lg:flex-row">
                 <Link href="/auth/signin" className="mx-auto lg:mx-0">
                   <Button className="flex w-[200px] items-center gap-2 rounded-full">
                     {t('hero.add_expense_button')} <ArrowRight size={15} />{' '}
-                  </Button>
-                </Link>
-                <Link
-                  href="https://github.com/oss-apps/split-pro"
-                  target="_blank"
-                  className="mx-auto lg:mx-0"
-                >
-                  <Button
-                    variant="outline"
-                    className="flex w-[200px] items-center gap-2 rounded-full"
-                  >
-                    <SiGithub className="size-4" /> {t('hero.star_github_button')}
                   </Button>
                 </Link>
               </div>
@@ -216,64 +195,7 @@ export default function Home() {
               </FeatureRow>
             </div>
 
-            <div className="mt-24 mb-20 flex flex-col gap-8 text-center lg:text-left">
-              <a
-                href="https://www.producthunt.com/posts/splitpro?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-splitpro"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Image
-                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=444717&theme=light"
-                  alt="Splitpro - Free&#0032;drop&#0032;in&#0032;replacement&#0032;&#0032;to&#0032;Splitwise&#0058;&#0032;Fully&#0032;Open&#0032;source | Product Hunt"
-                  className="mx-auto h-[47px] w-[200px] lg:mx-0"
-                  width="200"
-                  height="47"
-                />
-              </a>
-              <div>
-                {t('footer.built_by')}{' '}
-                <a
-                  className="text-primary"
-                  href="https://koushik.dev"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  KM Koushik
-                </a>
-                ,{' '}
-                <a
-                  className="text-primary"
-                  href="https://github.com/krokosik"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  krokosik
-                </a>
-                {/* <p className="text-gray-400">
-                  A product of <a className="underline underline-offset-2">ossapps.dev</a>
-                </p> */}
-              </div>
-              <div className="flex justify-center gap-4 lg:justify-start">
-                {isCloud && (
-                  <a
-                    className="text-primary"
-                    href="https://twitter.com/KM_Koushik_"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Twitter
-                  </a>
-                )}
-                <a
-                  className="text-primary"
-                  href="https://github.com/oss-apps/split-pro"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  GitHub
-                </a>
-              </div>
-            </div>
+            <div className="mt-24 mb-20 flex flex-col gap-8 text-center lg:text-left" />
           </div>
           <div className="sticky top-20 hidden shrink-0 lg:flex">
             <MobileScreenShot />

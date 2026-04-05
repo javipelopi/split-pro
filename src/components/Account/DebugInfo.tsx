@@ -26,7 +26,7 @@ export const DebugInfo: React.FC<React.PropsWithChildren<{ gitRevision: string |
     const fetchLatestVersion = async () => {
       try {
         const response = await fetch(
-          'https://api.github.com/repos/oss-apps/split-pro/releases/latest',
+          'https://api.github.com/repos/javipelopi/split-pro/releases/latest',
         );
         const data = await response.json();
         if (data.tag_name) {

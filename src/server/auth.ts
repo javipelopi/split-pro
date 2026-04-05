@@ -307,7 +307,7 @@ export function validateAuthEnv() {
     const providers = getProviders();
     if (0 === providers.length) {
       throw new Error(
-        'No authentication providers are configured, at least one is required. Learn more here: https://github.com/oss-apps/split-pro?tab=readme-ov-file#setting-up-the-environment',
+        'No authentication providers are configured, at least one is required. Learn more here: https://github.com/javipelopi/split-pro#setting-up-the-environment',
       );
     }
   }
