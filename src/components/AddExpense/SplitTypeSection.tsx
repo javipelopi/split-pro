@@ -8,12 +8,19 @@ import {
   type LucideIcon,
   Percent,
   Plus,
+  Users,
   X,
 } from 'lucide-react';
-import React, { type ChangeEvent, type PropsWithChildren, useCallback, useMemo } from 'react';
+import React, {
+  type ChangeEvent,
+  type PropsWithChildren,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslationWithUtils } from '~/hooks/useTranslationWithUtils';
 
-import { type Participant, useAddExpenseStore } from '~/store/addStore';
+import { type Participant, type Payer, useAddExpenseStore } from '~/store/addStore';
 import { BigMath } from '~/utils/numbers';
 
 import { type TFunction, useTranslation } from 'next-i18next';
@@ -29,26 +36,50 @@ import { Button } from '../ui/button';
 export const PayerSelectionForm: React.FC<PropsWithChildren> = ({ children }) => {
   const { t } = useTranslationWithUtils();
   const isNegative = useAddExpenseStore((s) => s.isNegative);
-  const paidBy = useAddExpenseStore((s) => s.paidBy);
+  const payers = useAddExpenseStore((s) => s.payers);
   const participants = useAddExpenseStore((s) => s.participants);
+  const amount = useAddExpenseStore((s) => s.amount);
+  const currency = useAddExpenseStore((s) => s.currency);
+  const [multiMode, setMultiMode] = useState(payers.length > 1);
+
+  const toggleMultiMode = useCallback(() => {
+    setMultiMode((prev) => !prev);
+  }, []);
 
   return (
     <AppDrawer
       trigger={children}
       title={t(`ui.expense.${isNegative ? 'received_by' : 'paid_by'}`)}
       className="h-[70vh]"
-      shouldCloseOnAction
+      shouldCloseOnAction={!multiMode}
     >
-      <div className="flex flex-col gap-6 overflow-auto">
-        {participants.map((participant) => (
-          <PayerRow key={participant.id} p={participant} isPaying={participant.id === paidBy?.id} />
-        ))}
+      <div className="flex flex-col gap-4 overflow-auto">
+        <Button variant="outline" size="sm" className="mx-auto gap-2" onClick={toggleMultiMode}>
+          <Users className="h-4 w-4" />
+          {multiMode ? t('ui.expense.single_payer') : t('ui.expense.multiple_payers')}
+        </Button>
+        {multiMode ? (
+          <MultiPayerSelection
+            participants={participants}
+            payers={payers}
+            amount={amount}
+            currency={currency}
+          />
+        ) : (
+          participants.map((participant) => (
+            <SinglePayerRow
+              key={participant.id}
+              p={participant}
+              isPaying={payers.some((py) => py.user.id === participant.id)}
+            />
+          ))
+        )}
       </div>
     </AppDrawer>
   );
 };
 
-const PayerRow = ({ p, isPaying }: { p: Participant; isPaying: boolean }) => {
+const SinglePayerRow = ({ p, isPaying }: { p: Participant; isPaying: boolean }) => {
   const { displayName } = useTranslationWithUtils();
   const currentUser = useAddExpenseStore((s) => s.currentUser);
   const { setPaidBy } = useAddExpenseStore((s) => s.actions);
@@ -63,6 +94,103 @@ const PayerRow = ({ p, isPaying }: { p: Participant; isPaying: boolean }) => {
       </div>
       {isPaying ? <Check className="h-6 w-6 text-cyan-500" /> : null}
     </AppDrawerClose>
+  );
+};
+
+const MultiPayerSelection: React.FC<{
+  participants: Participant[];
+  payers: Payer[];
+  amount: bigint;
+  currency: CurrencyCode;
+}> = ({ participants, payers, amount, currency }) => {
+  const { getCurrencyHelpersCached } = useTranslationWithUtils();
+  const { toUIString } = getCurrencyHelpersCached(currency);
+  const { addPayer, removePayer, setPayerAmount } = useAddExpenseStore((s) => s.actions);
+
+  const payerTotal = payers.reduce((sum, p) => sum + p.amount, 0n);
+  const remaining = amount - payerTotal;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className={cn('text-center text-sm', remaining === 0n ? 'text-gray-400' : 'text-red-500')}>
+        {remaining === 0n ? `${toUIString(amount)} covered` : `${toUIString(remaining)} remaining`}
+      </p>
+      {participants.map((participant) => {
+        const payer = payers.find((py) => py.user.id === participant.id);
+        return (
+          <MultiPayerRow
+            key={participant.id}
+            participant={participant}
+            payer={payer}
+            currency={currency}
+            onAdd={addPayer}
+            onRemove={removePayer}
+            onAmountChange={setPayerAmount}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+const MultiPayerRow: React.FC<{
+  participant: Participant;
+  payer?: Payer;
+  currency: CurrencyCode;
+  onAdd: (user: Participant) => void;
+  onRemove: (userId: number) => void;
+  onAmountChange: (userId: number, amount: bigint) => void;
+}> = ({ participant, payer, currency, onAdd, onRemove, onAmountChange }) => {
+  const { displayName, getCurrencyHelpersCached } = useTranslationWithUtils();
+  const currentUser = useAddExpenseStore((s) => s.currentUser);
+  const { toUIString } = getCurrencyHelpersCached(currency);
+
+  const [amountStr, setAmountStr] = useState(payer ? toUIString(payer.amount) : '');
+
+  const isPayer = Boolean(payer);
+
+  const onToggle = useCallback(() => {
+    if (isPayer) {
+      onRemove(participant.id);
+      setAmountStr('');
+    } else {
+      onAdd(participant);
+      setAmountStr(toUIString(0n));
+    }
+  }, [isPayer, participant, onAdd, onRemove, toUIString]);
+
+  const onValueChange = useCallback(
+    ({ strValue, bigIntValue }: { strValue?: string; bigIntValue?: bigint }) => {
+      if (strValue !== undefined) {
+        setAmountStr(strValue);
+      }
+      if (bigIntValue !== undefined) {
+        onAmountChange(participant.id, bigIntValue);
+      }
+    },
+    [participant.id, onAmountChange],
+  );
+
+  return (
+    <div className="flex items-center justify-between gap-2 px-2">
+      <div className="flex cursor-pointer items-center gap-1" onClick={onToggle}>
+        {isPayer ? (
+          <Check className="h-5 w-5 text-cyan-500" />
+        ) : (
+          <div className="h-5 w-5 rounded border border-gray-300" />
+        )}
+        <EntityAvatar entity={participant} size={28} />
+        <p className="ml-2 text-sm">{displayName(participant, currentUser?.id)}</p>
+      </div>
+      {isPayer && (
+        <CurrencyInput
+          strValue={amountStr}
+          currency={currency}
+          className="w-28 text-right text-sm"
+          onValueChange={onValueChange}
+        />
+      )}
+    </div>
   );
 };
 
@@ -387,14 +515,14 @@ export const UserAndAmount: React.FC<{ user: Participant; currency: CurrencyCode
   currency,
 }) => {
   const canSplitScreenClosed = useAddExpenseStore((s) => s.canSplitScreenClosed);
-  const paidBy = useAddExpenseStore((s) => s.paidBy);
-  const amount = useAddExpenseStore((s) => s.amount);
+  const payers = useAddExpenseStore((s) => s.payers);
   const currentUser = useAddExpenseStore((s) => s.currentUser);
 
   const { getCurrencyHelpersCached, displayName } = useTranslationWithUtils();
   const { toUIString } = getCurrencyHelpersCached(currency);
 
-  const shareAmount = paidBy?.id === user.id ? (user.amount ?? 0n) - amount : user.amount;
+  const paidAmount = payers.find((p) => p.user.id === user.id)?.amount ?? 0n;
+  const shareAmount = (user.amount ?? 0n) - paidAmount;
 
   return (
     <div className="flex h-11 items-center gap-2">

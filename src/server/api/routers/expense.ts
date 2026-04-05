@@ -257,11 +257,18 @@ export const expenseRouter = createTRPCRouter({
             {
               OR: [
                 {
-                  paidBy: ctx.session.user.id,
+                  expensePayers: {
+                    some: { userId: ctx.session.user.id },
+                  },
                 },
                 {
-                  paidBy: input.friendId,
+                  expensePayers: {
+                    some: { userId: input.friendId },
+                  },
                 },
+                // Fallback for legacy data
+                { paidBy: ctx.session.user.id },
+                { paidBy: input.friendId },
               ],
             },
             {
@@ -300,6 +307,9 @@ export const expenseRouter = createTRPCRouter({
             },
           },
           paidByUser: true,
+          expensePayers: {
+            include: { user: true },
+          },
           conversionTo: true,
           group: {
             select: {
@@ -340,6 +350,9 @@ export const expenseRouter = createTRPCRouter({
         include: {
           expenseParticipants: true,
           paidByUser: true,
+          expensePayers: {
+            include: { user: true },
+          },
           deletedByUser: true,
           conversionTo: true,
         },
@@ -357,6 +370,11 @@ export const expenseRouter = createTRPCRouter({
         },
         include: {
           expenseParticipants: {
+            include: {
+              user: true,
+            },
+          },
+          expensePayers: {
             include: {
               user: true,
             },
@@ -380,6 +398,11 @@ export const expenseRouter = createTRPCRouter({
           conversionTo: {
             include: {
               expenseParticipants: {
+                include: {
+                  user: true,
+                },
+              },
+              expensePayers: {
                 include: {
                   user: true,
                 },
@@ -443,6 +466,18 @@ export const expenseRouter = createTRPCRouter({
                 email: true,
                 image: true,
                 id: true,
+              },
+            },
+            expensePayers: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                    email: true,
+                    image: true,
+                    id: true,
+                  },
+                },
               },
             },
             deletedByUser: {

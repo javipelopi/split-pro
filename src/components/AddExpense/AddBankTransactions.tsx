@@ -86,6 +86,7 @@ const AddBankTransactions: React.FC<{
           splitType: tempExpense.splitType,
           splitShares,
           paidBy,
+          payers: paidBy ? [{ user: paidBy, amount: tempExpense.amount }] : [],
           isNegative: false,
         });
 
