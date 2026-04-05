@@ -81,6 +81,7 @@
     "leave": "Leave",
     "next": "Next",
     "save": "Save",
+    "record_transfer": "Transfer",
     "settle_up": "Settle up",
     "submit": "Submit",
     "reconnect": "Reconnect",
@@ -408,6 +409,12 @@
     "settle_up_name": "Settle up",
     "settled_up": "Settled up",
     "settlement": "Settlement",
+    "transfer": {
+      "name": "Transfer",
+      "title": "Record transfer",
+      "select_payer": "Who paid?",
+      "select_receiver": "Paid to?"
+    },
     "share_text": "Check out SplitPro. It's an open source free alternative for Splitwise",
     "show_all_currencies": "Show all currencies",
     "today": "Today",

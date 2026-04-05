@@ -1,6 +1,7 @@
 import { clsx } from 'clsx';
 import {
   Archive,
+  ArrowLeftRight,
   BarChartHorizontal,
   Check,
   ChevronLeft,
@@ -24,6 +25,7 @@ import { ExpenseList } from '~/components/Expense/ExpenseList';
 import AddMembers from '~/components/group/AddMembers';
 import GroupMyBalance from '~/components/group/GroupMyBalance';
 import NoMembers from '~/components/group/NoMembers';
+import { RecordTransfer } from '~/components/group/RecordTransfer';
 import MainLayout from '~/components/Layout/MainLayout';
 import { EntityAvatar } from '~/components/ui/avatar';
 import { Button } from '~/components/ui/button';
@@ -83,7 +85,7 @@ const BalancePage: NextPageWithUser<{
   }, [groupDetailQuery.data, t]);
 
   const isAdmin = groupDetailQuery.data?.userId === user.id;
-  const isArchived = !!groupDetailQuery.data?.archivedAt;
+  const isArchived = Boolean(groupDetailQuery.data?.archivedAt);
   const canDeleteOrArchive =
     groupDetailQuery.data?.userId === user.id &&
     !groupDetailQuery.data?.groupBalances.find((bal) => 0n !== bal.amount);
@@ -409,6 +411,16 @@ const BalancePage: NextPageWithUser<{
                   <PlusIcon className="size-4" /> {t('actions.add_expense')}
                 </Button>
               </Link>
+
+              <RecordTransfer
+                groupId={groupId}
+                members={groupDetailQuery.data?.groupUsers.map((gu) => gu.user) ?? []}
+                defaultCurrency={groupDetailQuery.data?.defaultCurrency ?? 'USD'}
+              >
+                <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
+                  <ArrowLeftRight className="size-4 text-gray-400" /> {t('actions.record_transfer')}
+                </Button>
+              </RecordTransfer>
 
               <AddMembers group={groupDetailQuery.data} enableSendingInvites={enableSendingInvites}>
                 <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
