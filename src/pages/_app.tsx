@@ -5,7 +5,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { type Session } from 'next-auth';
 import { SessionProvider, useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
 import { appWithTranslation, useTranslation } from 'next-i18next';
 import i18nConfig from '@/next-i18next.config.js';
@@ -100,6 +100,7 @@ const Auth: React.FC<{ Page: NextPageWithUser; pageProps: any }> = ({ Page, page
   const [showSpinner, setShowSpinner] = useState(false);
   const updateUser = api.user.updateUserDetail.useMutation();
   const router = useRouter();
+  const languageSetRef = useRef(false);
 
   const { setCurrency } = useAddExpenseStore((s) => s.actions);
   const { setWebPushPublicKey } = useAppStore((s) => s.actions);
@@ -122,8 +123,9 @@ const Auth: React.FC<{ Page: NextPageWithUser; pageProps: any }> = ({ Page, page
     if ('authenticated' === status && data.user) {
       setCurrency(parseCurrencyCode(data.user.currency));
 
-      if (!data.user.preferredLanguage && !updateUser.isPending) {
-        // If user has no preferred language, set it to the current locale (once)
+      if (!data.user.preferredLanguage && !languageSetRef.current) {
+        // If user has no preferred language, set it to the current locale (once per mount)
+        languageSetRef.current = true;
         const currentLocale = router.locale ?? 'en';
 
         data.user.preferredLanguage = currentLocale;

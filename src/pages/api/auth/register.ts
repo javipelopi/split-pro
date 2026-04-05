@@ -50,6 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       email: normalizedEmail,
       passwordHash,
       emailVerified: new Date(),
+      preferredLanguage: 'en',
     },
   });
 

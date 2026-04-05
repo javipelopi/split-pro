@@ -146,7 +146,7 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const user = await db.user.update({
+      const { passwordHash: _, ...user } = await db.user.update({
         where: {
           id: ctx.session.user.id,
         },
