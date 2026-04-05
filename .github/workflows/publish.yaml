@@ -102,7 +102,10 @@ jobs:
             echo "channel=next" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create and push manifest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create and push multi-arch manifest
         env:
           REPO: ghcr.io/${{ github.repository }}
           CHANNEL: ${{ steps.version.outputs.channel }}
@@ -110,8 +113,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           for label in "$CHANNEL" "$SHA" "$TAG"; do
-            docker manifest create "$REPO:$label" \
-              --amend "$REPO-amd64:$label" \
-              --amend "$REPO-arm64:$label"
-            docker manifest push "$REPO:$label"
+            docker buildx imagetools create -t "$REPO:$label" \
+              "$REPO-amd64:$label" \
+              "$REPO-arm64:$label"
           done
