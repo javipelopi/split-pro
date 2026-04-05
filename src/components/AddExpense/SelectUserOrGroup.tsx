@@ -1,6 +1,6 @@
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { UserPlusIcon } from '@heroicons/react/24/solid';
-import { type Group, type GroupUser, type User } from '@prisma/client';
+import { type Group, type GroupUser, SplitType, type User } from '@prisma/client';
 import { SendIcon } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Image from 'next/image';
@@ -20,8 +20,14 @@ export const SelectUserOrGroup: React.FC<{
   const nameOrEmail = useAddExpenseStore((s) => s.nameOrEmail);
   const participants = useAddExpenseStore((s) => s.participants);
   const group = useAddExpenseStore((s) => s.group);
-  const { addOrUpdateParticipant, removeParticipant, setNameOrEmail, setGroup, setParticipants } =
-    useAddExpenseStore((s) => s.actions);
+  const {
+    addOrUpdateParticipant,
+    removeParticipant,
+    setNameOrEmail,
+    setGroup,
+    setParticipants,
+    setSplitShare,
+  } = useAddExpenseStore((s) => s.actions);
 
   const friendsQuery = api.user.getFriends.useQuery();
   const groupsQuery = api.group.getAllGroups.useQuery();
@@ -62,7 +68,7 @@ export const SelectUserOrGroup: React.FC<{
           preferredLanguage: '',
           hiddenFriendIds: [],
         });
-        // add email to split pro
+        // Add email to split pro
       }
     },
     [
@@ -84,10 +90,14 @@ export const SelectUserOrGroup: React.FC<{
           currentUser,
           ...group.groupUsers.map((gu) => gu.user).filter((u) => u.id !== currentUser.id),
         ]);
+        // Pre-fill EQUAL split weights from group member weights
+        for (const gu of group.groupUsers) {
+          setSplitShare(SplitType.EQUAL, gu.userId, BigInt(gu.weight));
+        }
       }
       setNameOrEmail('');
     },
-    [setGroup, setParticipants, setNameOrEmail],
+    [setGroup, setParticipants, setNameOrEmail, setSplitShare],
   );
 
   const handleAddEmailClickFalse = useCallback(() => onAddEmailClick(false), [onAddEmailClick]);
@@ -155,25 +165,23 @@ export const SelectUserOrGroup: React.FC<{
         {filteredFriends?.length ? (
           <>
             <div className="font-normal text-gray-500">{t('actors.friends')}</div>
-            {filteredFriends.map((f) => {
-              return (
-                <button
-                  key={f.id}
-                  className="flex w-full items-center justify-between border-b border-gray-900 py-4"
-                  onClick={() => handleFriendClick(f)}
-                >
-                  <div className="flex items-center gap-4">
-                    <EntityAvatar entity={f} size={35} />
-                    <div>{f.name ?? f.email}</div>
+            {filteredFriends.map((f) => (
+              <button
+                key={f.id}
+                className="flex w-full items-center justify-between border-b border-gray-900 py-4"
+                onClick={() => handleFriendClick(f)}
+              >
+                <div className="flex items-center gap-4">
+                  <EntityAvatar entity={f} size={35} />
+                  <div>{f.name ?? f.email}</div>
+                </div>
+                {participants.some((p) => p.id === f.id) ? (
+                  <div>
+                    <CheckIcon className="text-primary h-4 w-4" />
                   </div>
-                  {participants.some((p) => p.id === f.id) ? (
-                    <div>
-                      <CheckIcon className="text-primary h-4 w-4" />
-                    </div>
-                  ) : null}
-                </button>
-              );
-            })}
+                ) : null}
+              </button>
+            ))}
           </>
         ) : null}
 
@@ -182,20 +190,18 @@ export const SelectUserOrGroup: React.FC<{
           <>
             <div className="mt-8 text-gray-500">{t('actors.groups')}</div>
             <div className="mt-2 flex flex-col gap-1">
-              {filteredGroups.map((g) => {
-                return (
-                  <button
-                    key={g.groupId}
-                    className="border-b border-gray-900 py-4"
-                    onClick={() => onGroupSelect(g.group)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <EntityAvatar entity={g.group} size={35} />
-                      <p>{g.group.name}</p>
-                    </div>
-                  </button>
-                );
-              })}
+              {filteredGroups.map((g) => (
+                <button
+                  key={g.groupId}
+                  className="border-b border-gray-900 py-4"
+                  onClick={() => onGroupSelect(g.group)}
+                >
+                  <div className="flex items-center gap-4">
+                    <EntityAvatar entity={g.group} size={35} />
+                    <p>{g.group.name}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </>
         ) : null}

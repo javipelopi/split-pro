@@ -367,6 +367,55 @@ export const groupRouter = createTRPCRouter({
       return updatedGroup;
     }),
 
+  updateMemberWeight: groupProcedure
+    .input(
+      z.object({
+        groupId: z.number(),
+        userId: z.number(),
+        weight: z.number().int().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const groupUser = await ctx.db.groupUser.findUnique({
+        where: {
+          groupId_userId: {
+            groupId: input.groupId,
+            userId: input.userId,
+          },
+        },
+      });
+
+      if (!groupUser) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Group member not found' });
+      }
+
+      const isInGroup = await ctx.db.groupUser.findFirst({
+        where: {
+          groupId: input.groupId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!isInGroup) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Only group members can update weights',
+        });
+      }
+
+      return ctx.db.groupUser.update({
+        where: {
+          groupId_userId: {
+            groupId: input.groupId,
+            userId: input.userId,
+          },
+        },
+        data: {
+          weight: input.weight,
+        },
+      });
+    }),
+
   delete: groupProcedure
     .input(z.object({ groupId: z.number() }))
     .mutation(async ({ input, ctx }) => {

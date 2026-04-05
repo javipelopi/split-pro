@@ -276,10 +276,17 @@ export function calculateParticipantSplit(
 
   switch (splitType) {
     case SplitType.EQUAL:
-      const totalParticipants = participants.filter((p) => 0n !== getSplitShare(p)).length;
+      const getWeight = (p: Participant) => {
+        const share = getSplitShare(p);
+        if (undefined === share) {
+          return 1n;
+        }
+        return share;
+      };
+      const totalWeight = participants.reduce((acc, p) => acc + getWeight(p), 0n);
       updatedParticipants = participants.map((p) => ({
         ...p,
-        amount: 0n === getSplitShare(p) ? 0n : amount / BigInt(totalParticipants),
+        amount: 0n === getWeight(p) ? 0n : (amount * getWeight(p)) / totalWeight,
       }));
       canSplitScreenClosed = Boolean(
         Object.values(splitShares).find((p) => 0n !== p[SplitType.EQUAL]),
@@ -359,9 +366,13 @@ export function calculateParticipantSplit(
   return { ...state, participants: updatedParticipants, canSplitScreenClosed };
 }
 
-export const initSplitShares = (): Record<SplitType, undefined> =>
-  // @ts-expect-error TS enums/string coersion *eyeroll*
-  Object.fromEntries(Object.values(SplitType).map((type) => [type, undefined]));
+export const initSplitShares = (): Record<SplitType, bigint | undefined> => {
+  const shares = Object.fromEntries(
+    Object.values(SplitType).map((type) => [type, undefined]),
+  ) as Record<SplitType, bigint | undefined>;
+  shares[SplitType.EQUAL] = 1n;
+  return shares;
+};
 
 export function calculateSplitShareBasedOnAmount(
   amount: bigint,

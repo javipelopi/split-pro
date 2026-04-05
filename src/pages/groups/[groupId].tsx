@@ -10,6 +10,7 @@ import {
   Info,
   Merge,
   PlusIcon,
+  Scale,
   Share,
   Trash2,
   UserPlus,
@@ -31,6 +32,7 @@ import MainLayout from '~/components/Layout/MainLayout';
 import { EntityAvatar } from '~/components/ui/avatar';
 import { Button } from '~/components/ui/button';
 import { AppDrawer } from '~/components/ui/drawer';
+import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { SimpleConfirmationDialog } from '~/components/SimpleConfirmationDialog';
 import { Switch } from '~/components/ui/switch';
@@ -58,6 +60,7 @@ const BalancePage: NextPageWithUser<{
   const toggleArchiveMutation = api.group.toggleArchive.useMutation();
   const toggleSimplifyDebtsMutation = api.group.toggleSimplifyDebts.useMutation();
   const updateGroupDetailsMutation = api.group.updateGroupDetails.useMutation();
+  const updateMemberWeightMutation = api.group.updateMemberWeight.useMutation();
 
   const [isInviteCopied, setIsInviteCopied] = useState(false);
 
@@ -223,42 +226,74 @@ const BalancePage: NextPageWithUser<{
                         <EntityAvatar entity={groupUser.user} />
                         <p>{displayName(groupUser.user)}</p>
                       </div>
-                      {groupUser.userId === groupDetailQuery.data?.userId ? (
-                        <p className="text-sm text-gray-400">{t('actors.owner')}</p>
-                      ) : (
-                        isAdmin &&
-                        (() => {
-                          const canLeave = !groupDetailQuery.data?.groupBalances.find(
-                            (b) => 0n !== b.amount && b.userId === groupUser.userId,
-                          );
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <Scale className="h-3.5 w-3.5 text-gray-400" />
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            defaultValue={groupUser.weight}
+                            className="h-7 w-14 text-center text-sm"
+                            disabled={isArchived}
+                            onBlur={(e) => {
+                              const weight = parseInt(e.target.value, 10);
+                              if (weight >= 1 && weight !== groupUser.weight) {
+                                updateMemberWeightMutation.mutate(
+                                  { groupId, userId: groupUser.userId, weight },
+                                  {
+                                    onSuccess: () => {
+                                      void groupDetailQuery.refetch();
+                                    },
+                                    onError: () => {
+                                      toast.error(t('errors.setting_update_failed'));
+                                      e.target.value = String(groupUser.weight);
+                                    },
+                                  },
+                                );
+                              }
+                            }}
+                          />
+                        </div>
+                        {groupUser.userId === groupDetailQuery.data?.userId ? (
+                          <p className="text-sm text-gray-400">{t('actors.owner')}</p>
+                        ) : (
+                          isAdmin &&
+                          (() => {
+                            const canLeave = !groupDetailQuery.data?.groupBalances.find(
+                              (b) => 0n !== b.amount && b.userId === groupUser.userId,
+                            );
 
-                          return (
-                            <SimpleConfirmationDialog
-                              title={
-                                canLeave
-                                  ? t('group_details.group_info.remove_member_details.title')
-                                  : ''
-                              }
-                              description={
-                                canLeave
-                                  ? t('group_details.group_info.remove_member_details.can_remove')
-                                  : t('group_details.group_info.remove_member_details.cant_remove')
-                              }
-                              hasPermission={canLeave}
-                              onConfirm={() => onGroupLeave(groupUser.userId)}
-                              loading={leaveGroupMutation.isPending}
-                              variant="destructive"
-                            >
-                              <Button
-                                variant="ghost"
-                                className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                            return (
+                              <SimpleConfirmationDialog
+                                title={
+                                  canLeave
+                                    ? t('group_details.group_info.remove_member_details.title')
+                                    : ''
+                                }
+                                description={
+                                  canLeave
+                                    ? t('group_details.group_info.remove_member_details.can_remove')
+                                    : t(
+                                        'group_details.group_info.remove_member_details.cant_remove',
+                                      )
+                                }
+                                hasPermission={canLeave}
+                                onConfirm={() => onGroupLeave(groupUser.userId)}
+                                loading={leaveGroupMutation.isPending}
+                                variant="destructive"
                               >
-                                <X className="mr-2 h-5 w-5" />
-                              </Button>
-                            </SimpleConfirmationDialog>
-                          );
-                        })()
-                      )}
+                                <Button
+                                  variant="ghost"
+                                  className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                                >
+                                  <X className="mr-2 h-5 w-5" />
+                                </Button>
+                              </SimpleConfirmationDialog>
+                            );
+                          })()
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

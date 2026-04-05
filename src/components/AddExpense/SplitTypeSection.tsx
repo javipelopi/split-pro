@@ -349,7 +349,10 @@ const ParticipantRow = ({
       <UserAndAmount user={p} currency={currency} />
       {isBoolean ? (
         0n !== share ? (
-          <Check className="h-6 w-6 text-cyan-500" />
+          <div className="flex items-center gap-1">
+            {share && share > 1n && <span className="text-xs text-gray-400">×{Number(share)}</span>}
+            <Check className="h-6 w-6 text-cyan-500" />
+          </div>
         ) : null
       ) : isCurrency ? (
         <div className="flex w-1/2 items-center gap-1">

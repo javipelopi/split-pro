@@ -114,6 +114,7 @@ model Group {
 model GroupUser {
   groupId Int
   userId  Int
+  weight  Int   @default(1)
   group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
