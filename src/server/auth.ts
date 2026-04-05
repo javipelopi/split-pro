@@ -1,17 +1,15 @@
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import { compare } from 'bcryptjs';
 import { type GetServerSidePropsContext } from 'next';
 import { type DefaultSession, type NextAuthOptions, type User, getServerSession } from 'next-auth';
 import { type Adapter, type AdapterAccount, type AdapterUser } from 'next-auth/adapters';
 import AuthentikProvider from 'next-auth/providers/authentik';
-import EmailProvider from 'next-auth/providers/email';
-import GoogleProvider from 'next-auth/providers/google';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import KeycloakProvider from 'next-auth/providers/keycloak';
 
 import { env } from '~/env';
 import { db } from '~/server/db';
 
-import { sendSignUpEmail } from './mailer';
-import { getBaseUrl } from '~/utils/api';
 import type { OAuthConfig } from 'next-auth/providers/oauth';
 
 /**
@@ -39,6 +37,17 @@ declare module 'next-auth' {
     name: string;
     email: string;
     image: string;
+    currency: string;
+    obapiProviderId?: string;
+    bankingId?: string;
+    preferredLanguage: string;
+    hiddenFriendIds: number[];
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: number;
     currency: string;
     obapiProviderId?: string;
     bankingId?: string;
@@ -78,7 +87,7 @@ const SplitProPrismaAdapter = (...args: Parameters<typeof PrismaAdapter>): Adapt
 
       // Keycloak and Gitlab provide some non-standard fields that do not exist in the prisma schema.
       // We strip them out before passing them on to the original adapter.
-      if (account.provider === 'keycloak') {
+      if ('keycloak' === account.provider) {
         const {
           'not-before-policy': _notBeforePolicy,
           refresh_expires_in: _refresh_expires_in,
@@ -86,7 +95,7 @@ const SplitProPrismaAdapter = (...args: Parameters<typeof PrismaAdapter>): Adapt
         } = account as AdapterAccount & Record<string, unknown>;
 
         return originalLinkAccount(standardAccountData as AdapterAccount);
-      } else if (account.provider === 'gitlab') {
+      } else if ('gitlab' === account.provider) {
         const { created_at: _createdAt, ...standardAccountData } = account as AdapterAccount &
           Record<string, unknown>;
 
@@ -108,30 +117,34 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/auth/signin',
   },
+  session: {
+    strategy: 'jwt',
+  },
   callbacks: {
-    session: ({ session, user }) => ({
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = Number(user.id);
+        token.currency = user.currency;
+        token.obapiProviderId = user.obapiProviderId;
+        token.bankingId = user.bankingId;
+        token.preferredLanguage = user.preferredLanguage;
+        token.hiddenFriendIds = user.hiddenFriendIds;
+      }
+      return token;
+    },
+    session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
-        id: user.id,
-        currency: user.currency,
-        obapiProviderId: user.obapiProviderId,
-        bankingId: user.bankingId,
-        preferredLanguage: user.preferredLanguage,
-        hiddenFriendIds: user.hiddenFriendIds,
+        id: token.id,
+        currency: token.currency,
+        obapiProviderId: token.obapiProviderId,
+        bankingId: token.bankingId,
+        preferredLanguage: token.preferredLanguage,
+        hiddenFriendIds: token.hiddenFriendIds,
       },
     }),
-    async signIn({ user, email }) {
-      if (email?.verificationRequest && env.DISABLE_EMAIL_SIGNUP) {
-        const existingUser = await db.user.findUnique({
-          where: { email: user.email! },
-        });
-
-        if (!existingUser) {
-          return `${getBaseUrl()}/auth/signin?error=SignupDisabled`;
-        }
-      }
-
+    signIn() {
       return true;
     },
   },
@@ -191,40 +204,45 @@ export const getServerAuthSessionForSSG = async (context: GetServerSidePropsCont
 function getProviders() {
   const providersList = [];
 
-  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-    providersList.push(
-      GoogleProvider({
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        allowDangerousEmailAccountLinking: true,
-      }),
-    );
-  }
+  providersList.push(
+    CredentialsProvider({
+      name: 'Credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
 
-  if (env.EMAIL_SERVER_HOST) {
-    providersList.push(
-      EmailProvider({
-        from: env.FROM_EMAIL,
-        server: {
-          host: env.EMAIL_SERVER_HOST,
-          port: parseInt(env.EMAIL_SERVER_PORT ?? ''),
-          auth: {
-            user: env.EMAIL_SERVER_USER,
-            pass: env.EMAIL_SERVER_PASSWORD,
-          },
-        },
-        async sendVerificationRequest({ identifier: email, url, token }) {
-          const result = await sendSignUpEmail(email, url, token);
-          if (!result) {
-            throw new Error('Failed to send email');
-          }
-        },
-        generateVerificationToken() {
-          return Math.random().toString(36).substring(2, 7).toLowerCase();
-        },
-      }),
-    );
-  }
+        const user = await db.user.findUnique({
+          where: { email: credentials.email.toLowerCase() },
+        });
+
+        if (!user?.passwordHash) {
+          return null;
+        }
+
+        const isValid = await compare(credentials.password, user.passwordHash);
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          currency: user.currency,
+          obapiProviderId: user.obapiProviderId ?? undefined,
+          bankingId: user.bankingId ?? undefined,
+          preferredLanguage: user.preferredLanguage,
+          hiddenFriendIds: user.hiddenFriendIds,
+        } as unknown as User;
+      },
+    }),
+  );
 
   if (env.AUTHENTIK_ID && env.AUTHENTIK_SECRET && env.AUTHENTIK_ISSUER) {
     providersList.push(
@@ -260,11 +278,6 @@ function getProviders() {
       allowDangerousEmailAccountLinking: env.OIDC_ALLOW_DANGEROUS_EMAIL_LINKING,
       idToken: true,
       profile(profile) {
-        // This function expects a "standard" next-auth user but we override
-        // what a next-auth user is above.  The expected next-auth user must be
-        // a record that has an id, a name, an email, and an image.
-        //
-        // To work around this, we case to unknown and then `User`.
         return {
           id: profile.sub,
           name: profile.name,
@@ -286,9 +299,7 @@ function getProviders() {
 
 /**
  * Validates the environment variables that are related to authentication.
- * this will check if atleat one provider is set properly.
- *
- * this function should be updated if new providers are added.
+ * Credentials provider is always available so at least one provider exists.
  */
 export function validateAuthEnv() {
   console.log('Validating auth env');

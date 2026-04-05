@@ -55,6 +55,7 @@ export const SelectUserOrGroup: React.FC<{
           email: nameOrEmail,
           emailVerified: new Date(),
           image: null,
+          passwordHash: null,
           currency: 'USD',
           obapiProviderId: null,
           bankingId: null,

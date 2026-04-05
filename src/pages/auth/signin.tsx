@@ -3,9 +3,7 @@ import {
   SiAuth0,
   SiAuthelia,
   SiAuthentik,
-  SiGithub,
   SiGitlab,
-  SiGoogle,
   SiKeycloak,
 } from '@icons-pack/react-simple-icons';
 import { type GetServerSideProps, type NextPage } from 'next';
@@ -23,6 +21,7 @@ import {
   FormDescription,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from '~/components/ui/form';
 import { Input } from '~/components/ui/input';
@@ -30,11 +29,8 @@ import { LoadingSpinner } from '~/components/ui/spinner';
 import { env } from '~/env';
 import { getServerAuthSession } from '~/server/auth';
 import { customServerSideTranslations } from '~/utils/i18n/server';
-import VerificationStep from './VerificationStep';
 
 const providerSvgs = {
-  github: <SiGithub />,
-  google: <SiGoogle />,
   authentik: <SiAuthentik />,
   authelia: <SiAuthelia />,
   auth0: <SiAuth0 />,
@@ -45,14 +41,31 @@ const providerSvgs = {
 const providerTypeGuard = (providerId: string): providerId is keyof typeof providerSvgs =>
   providerId in providerSvgs;
 
-const emailSchema = (t: TFunction) =>
+const loginSchema = (t: TFunction) =>
   z.object({
     email: z
       .string({ required_error: t('errors.email_required') })
       .email({ message: t('errors.email_invalid') }),
+    password: z
+      .string({ required_error: t('errors.password_required') })
+      .min(1, { message: t('errors.password_required') }),
   });
 
-type EmailFormValues = z.infer<ReturnType<typeof emailSchema>>;
+const registerSchema = (t: TFunction) =>
+  z.object({
+    name: z
+      .string({ required_error: t('errors.name_required') })
+      .min(1, { message: t('errors.name_required') }),
+    email: z
+      .string({ required_error: t('errors.email_required') })
+      .email({ message: t('errors.email_invalid') }),
+    password: z
+      .string({ required_error: t('errors.password_required') })
+      .min(8, { message: t('errors.password_min_length') }),
+  });
+
+type LoginFormValues = z.infer<ReturnType<typeof loginSchema>>;
+type RegisterFormValues = z.infer<ReturnType<typeof registerSchema>>;
 
 const Home: NextPage<{
   error: string;
@@ -61,16 +74,19 @@ const Home: NextPage<{
   callbackUrl?: string;
 }> = ({ error, providers: serverProviders, feedbackEmail, callbackUrl }) => {
   const { t } = useTranslation();
-  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'success'>('idle');
-  const [showVerificationStep, setShowVerificationStep] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [providers, setProviders] = useState<ClientSafeProvider[]>(serverProviders);
   const [isLoadingProviders, setIsLoadingProviders] = useState(false);
 
-  const emailForm = useForm<EmailFormValues>({
-    resolver: zodResolver(emailSchema(t)),
-    defaultValues: {
-      email: '',
-    },
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema(t)),
+    defaultValues: { email: '', password: '' },
+  });
+
+  const registerForm = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema(t)),
+    defaultValues: { name: '', email: '', password: '' },
   });
 
   // Client-side fallback for getProviders when server-side call fails
@@ -103,6 +119,8 @@ const Home: NextPage<{
         toast.error(t('errors.signup_disabled'), { duration: 5000 });
       } else if ('SessionRequired' === error) {
         return;
+      } else if ('CredentialsSignin' === error) {
+        toast.error(t('errors.invalid_credentials'), { duration: 5000 });
       } else {
         toast.error(t('errors.signin_error') + error);
         console.error('Error during sign-in:', error);
@@ -110,61 +128,78 @@ const Home: NextPage<{
     }
   }, [error, t]);
 
-  const onEmailSubmit = useCallback(async () => {
-    setEmailStatus('sending');
-    const email = emailForm.getValues().email.toLowerCase();
-    setShowVerificationStep(true);
-    await signIn('email', { email, callbackUrl, redirect: false });
-    setEmailStatus('success');
-  }, [emailForm, setShowVerificationStep, callbackUrl]);
+  const onLoginSubmit = useCallback(
+    async (values: LoginFormValues) => {
+      setIsSubmitting(true);
+      try {
+        const result = await signIn('credentials', {
+          email: values.email.toLowerCase(),
+          password: values.password,
+          callbackUrl: callbackUrl || '/balances',
+          redirect: false,
+        });
 
-  useEffect(() => {
-    const onPop = (e: PopStateEvent) => {
-      if (showVerificationStep) {
-        e.preventDefault();
-        setShowVerificationStep(false);
+        if (result?.error) {
+          toast.error(t('errors.invalid_credentials'));
+        } else if (result?.url) {
+          window.location.href = result.url;
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    };
-    window.addEventListener('popstate', onPop);
-    return () => {
-      window.removeEventListener('popstate', onPop);
-    };
-  }, [showVerificationStep]);
+    },
+    [callbackUrl, t],
+  );
+
+  const onRegisterSubmit = useCallback(
+    async (values: RegisterFormValues) => {
+      setIsSubmitting(true);
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: values.name,
+            email: values.email.toLowerCase(),
+            password: values.password,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          toast.error(data.error ?? t('errors.something_went_wrong'));
+          return;
+        }
+
+        // Auto-login after registration
+        const result = await signIn('credentials', {
+          email: values.email.toLowerCase(),
+          password: values.password,
+          callbackUrl: callbackUrl || '/balances',
+          redirect: false,
+        });
+
+        if (result?.url) {
+          window.location.href = result.url;
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [callbackUrl, t],
+  );
 
   const handleProviderSignIn = useCallback(
     (providerId: string) => () => signIn(providerId, { callbackUrl }),
     [callbackUrl],
   );
 
-  const field = useCallback(
-    ({ field }: any) => (
-      <FormItem>
-        <FormControl>
-          <Input
-            placeholder={t('auth.email_placeholder')}
-            className="w-[300px] text-lg"
-            type="email"
-            {...field}
-          />
-        </FormControl>
-        <FormDescription />
-        <FormMessage />
-      </FormItem>
-    ),
-    [t],
+  const oauthProviders = useMemo(
+    () => providers.filter((p) => 'credentials' !== p.id),
+    [providers],
   );
 
   const feedbackEmailLink = useMemo(() => `mailto:${feedbackEmail}`, [feedbackEmail]);
-
-  if (showVerificationStep) {
-    return (
-      <VerificationStep
-        feedbackEmail={feedbackEmail}
-        email={emailForm.getValues().email}
-        callbackUrl={callbackUrl}
-      />
-    );
-  }
 
   return (
     <>
@@ -183,67 +218,171 @@ const Home: NextPage<{
             </div>
           ) : (
             <>
-              {providers.length === 0 ? (
-                <div className="text-muted-foreground flex w-[300px] flex-col items-center gap-4 text-center">
-                  <p className="text-lg font-semibold">{t('auth.no_providers_configured')}</p>
-                  <p className="text-sm">
-                    {t('auth.no_providers_instructions')}{' '}
-                    <a
-                      className="text-primary underline"
-                      href="https://github.com/oss-apps/split-pro/blob/main/docker/README.md"
-                      target="_blank"
-                      rel="noopener noreferrer"
+              {isRegistering ? (
+                <Form {...registerForm}>
+                  <form
+                    onSubmit={registerForm.handleSubmit(onRegisterSubmit)}
+                    className="w-[300px] space-y-4"
+                  >
+                    <FormField
+                      control={registerForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('auth.name')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('auth.name_placeholder')}
+                              className="text-lg"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={registerForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('auth.email')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('auth.email_placeholder')}
+                              className="text-lg"
+                              type="email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={registerForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('auth.password')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('auth.password_placeholder')}
+                              className="text-lg"
+                              type="password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>{t('auth.password_hint')}</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      className="mt-2 w-full bg-white hover:bg-gray-100 focus:bg-gray-100"
+                      type="submit"
+                      disabled={isSubmitting}
                     >
-                      {t('auth.setup_instructions')}
-                    </a>
-                    .
-                  </p>
-                </div>
+                      {isSubmitting ? t('auth.registering') : t('auth.register')}
+                    </Button>
+                    <p className="text-muted-foreground text-center text-sm">
+                      {t('auth.already_have_account')}{' '}
+                      <button
+                        type="button"
+                        className="text-primary underline"
+                        onClick={() => setIsRegistering(false)}
+                      >
+                        {t('auth.sign_in')}
+                      </button>
+                    </p>
+                  </form>
+                </Form>
               ) : (
                 <>
-                  {providers
-                    .filter((provider) => 'email' !== provider.id)
-                    .map((provider) => (
+                  <Form {...loginForm}>
+                    <form
+                      onSubmit={loginForm.handleSubmit(onLoginSubmit)}
+                      className="w-[300px] space-y-4"
+                    >
+                      <FormField
+                        control={loginForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('auth.email')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder={t('auth.email_placeholder')}
+                                className="text-lg"
+                                type="email"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={loginForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('auth.password')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder={t('auth.password_placeholder')}
+                                className="text-lg"
+                                type="password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <Button
-                        className="mx-auto my-2 flex w-[300px] items-center gap-3 bg-white hover:bg-gray-100 focus:bg-gray-100"
-                        onClick={handleProviderSignIn(provider.id)}
-                        key={provider.id}
+                        className="mt-2 w-full bg-white hover:bg-gray-100 focus:bg-gray-100"
+                        type="submit"
+                        disabled={isSubmitting}
                       >
-                        {providerTypeGuard(provider.id) && providerSvgs[provider.id]}
-                        {t('auth.continue_with', { provider: provider.name })}
+                        {isSubmitting ? t('auth.signing_in') : t('auth.sign_in')}
                       </Button>
-                    ))}
-                  {providers && 2 === providers.length && (
-                    <div className="mt-6 flex w-[300px] items-center justify-between gap-2">
-                      <p className="bg-background z-10 ml-[150px] -translate-x-1/2 px-4 text-sm">
-                        {t('ui.or')}
-                      </p>
-                      <div className="absolute h-px w-[300px] bg-linear-to-r from-zinc-800 via-zinc-300 to-zinc-800" />
-                    </div>
-                  )}
-                  {providers.find((provider) => 'email' === provider.id) ? (
-                    <>
-                      <Form {...emailForm}>
-                        <form
-                          onSubmit={emailForm.handleSubmit(onEmailSubmit)}
-                          className="mt-6 space-y-8"
+                      <p className="text-muted-foreground text-center text-sm">
+                        {t('auth.no_account')}{' '}
+                        <button
+                          type="button"
+                          className="text-primary underline"
+                          onClick={() => setIsRegistering(true)}
                         >
-                          <FormField control={emailForm.control} name="email" render={field} />
-                          <Button
-                            className="mt-6 w-[300px] bg-white hover:bg-gray-100 focus:bg-gray-100"
-                            type="submit"
-                            disabled={'sending' === emailStatus}
-                          >
-                            {'sending' === emailStatus
-                              ? t('auth.sending')
-                              : t('auth.send_magic_link')}
-                          </Button>
-                        </form>
-                      </Form>
+                          {t('auth.register')}
+                        </button>
+                      </p>
+                    </form>
+                  </Form>
+
+                  {oauthProviders.length > 0 && (
+                    <>
+                      <div className="mt-6 flex w-[300px] items-center justify-between gap-2">
+                        <p className="bg-background z-10 ml-[150px] -translate-x-1/2 px-4 text-sm">
+                          {t('ui.or')}
+                        </p>
+                        <div className="absolute h-px w-[300px] bg-linear-to-r from-zinc-800 via-zinc-300 to-zinc-800" />
+                      </div>
+                      {oauthProviders.map((provider) => (
+                        <Button
+                          className="mx-auto my-2 flex w-[300px] items-center gap-3 bg-white hover:bg-gray-100 focus:bg-gray-100"
+                          onClick={handleProviderSignIn(provider.id)}
+                          key={provider.id}
+                        >
+                          {providerTypeGuard(provider.id) && providerSvgs[provider.id]}
+                          {t('auth.continue_with', { provider: provider.name })}
+                        </Button>
+                      ))}
                     </>
-                  ) : null}
+                  )}
                 </>
               )}
+
               {feedbackEmail && (
                 <p className="text-muted-foreground mt-6 w-[300px] text-center text-sm">
                   {t('auth.trouble_logging_in')}
@@ -275,7 +414,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const { callbackUrl, error } = context.query;
 
   if (session) {
-    const redirectUrl = env.DEFAULT_HOMEPAGE == '/home' ? '/balances' : env.DEFAULT_HOMEPAGE;
+    const redirectUrl = '/home' === env.DEFAULT_HOMEPAGE ? '/balances' : env.DEFAULT_HOMEPAGE;
     const destination = callbackUrl && !Array.isArray(callbackUrl) ? callbackUrl : redirectUrl;
 
     return {
