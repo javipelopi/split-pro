@@ -419,5 +419,50 @@
     "show_all_currencies": "Show all currencies",
     "today": "Today",
     "in_group": "In group"
+  },
+  "import_csv": {
+    "title": "Import CSV",
+    "errors": {
+      "empty_file": "The file appears to be empty"
+    },
+    "messages": {
+      "import_success": "Successfully imported {{count}} expenses"
+    },
+    "steps": {
+      "upload": {
+        "title": "Upload CSV file",
+        "description": "Select a group and upload a CSV file with your expenses.",
+        "select_group": "Group",
+        "choose_group": "Select a group...",
+        "csv_file": "CSV file",
+        "preview": "Preview",
+        "rows": "rows"
+      },
+      "mapping": {
+        "title": "Map columns",
+        "description": "Match CSV columns to expense fields. Amount is required.",
+        "not_mapped": "Not mapped",
+        "sample": "Sample data"
+      },
+      "payers": {
+        "title": "Map payers",
+        "description": "Match payer names from the CSV to group members.",
+        "use_default": "Use default payer"
+      },
+      "defaults": {
+        "title": "Default values",
+        "description": "Set defaults for fields not mapped to CSV columns.",
+        "default_payer": "Default payer",
+        "default_date": "Default date",
+        "default_category": "Default category",
+        "currency_note": "Expenses will use the group currency: {{currency}}"
+      },
+      "preview": {
+        "title": "Review & import",
+        "description": "{{count}} expenses ready to import. Review before confirming.",
+        "no_expenses": "No valid expenses found in the CSV file.",
+        "import_expenses": "Import {{count}} expenses"
+      }
+    }
   }
 }

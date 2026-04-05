@@ -6,6 +6,7 @@ import {
   Check,
   ChevronLeft,
   DoorOpen,
+  FileSpreadsheet,
   Info,
   Merge,
   PlusIcon,
@@ -421,6 +422,12 @@ const BalancePage: NextPageWithUser<{
                   <ArrowLeftRight className="size-4 text-gray-400" /> {t('actions.record_transfer')}
                 </Button>
               </RecordTransfer>
+
+              <Link href={`/import-csv?groupId=${groupId}`}>
+                <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
+                  <FileSpreadsheet className="size-4 text-gray-400" /> {t('import_csv.title')}
+                </Button>
+              </Link>
 
               <AddMembers group={groupDetailQuery.data} enableSendingInvites={enableSendingInvites}>
                 <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
