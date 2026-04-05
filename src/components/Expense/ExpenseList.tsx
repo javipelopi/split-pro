@@ -94,8 +94,7 @@ const Expense: ExpenseComponent = ({ e, userId }) => {
   const router = useRouter();
   const { friendId } = router.query;
 
-  const youPaid =
-    (e.expensePayers?.some((p) => p.userId === userId) ?? e.paidBy === userId) && e.amount >= 0n;
+  const youPaid = e.paidBy === userId && e.amount >= 0n;
   const yourExpense = e.expenseParticipants.find((participant) => participant.userId === userId);
   const theirExpense = e.expenseParticipants.find(
     (participant) => participant.userId.toString() === friendId,
@@ -116,9 +115,7 @@ const Expense: ExpenseComponent = ({ e, userId }) => {
         <div>
           <p className="max-w-[180px] truncate text-sm lg:max-w-md lg:text-base">{e.name}</p>
           <p className="xs:max-w-full flex max-w-32 truncate text-center text-xs text-gray-500">
-            {e.expensePayers && e.expensePayers.length > 1
-              ? `${e.expensePayers.length} ${t('ui.expense.people')}`
-              : displayName(e.paidByUser, userId)}{' '}
+            {displayName(e.paidByUser, userId)}{' '}
             {t(`ui.expense.user.${e.amount < 0n ? 'received' : 'paid'}`)} {toUIString(e.amount)}
           </p>
         </div>

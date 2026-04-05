@@ -43,7 +43,6 @@ export async function createExpense(
     splitType,
     currency,
     participants,
-    payers,
     expenseDate,
     fileKey,
     transactionId,
@@ -54,9 +53,6 @@ export async function createExpense(
 ) {
   const nonZeroParticipants = getNonZeroParticipants(participants);
 
-  // Build payer records: use explicit payers if provided, otherwise fall back to single paidBy
-  const payerRecords = payers && payers.length > 0 ? payers : [{ userId: paidBy, amount }];
-
   const conversionFrom = conversionFromParams
     ? {
         create: {
@@ -65,20 +61,12 @@ export async function createExpense(
           expenseParticipants: {
             create: getNonZeroParticipants(conversionFromParams.participants),
           },
-          expensePayers: {
-            create:
-              conversionFromParams.payers && conversionFromParams.payers.length > 0
-                ? conversionFromParams.payers
-                : [{ userId: conversionFromParams.paidBy, amount: conversionFromParams.amount }],
-          },
         },
       }
     : undefined;
   if (conversionFrom) {
     // @ts-ignore
     delete conversionFrom.create.participants;
-    // @ts-ignore
-    delete conversionFrom.create.payers;
   }
 
   // Pre-generate UUID and create cron job if recurring (before transaction)
@@ -111,9 +99,6 @@ export async function createExpense(
         currency,
         expenseParticipants: {
           create: nonZeroParticipants,
-        },
-        expensePayers: {
-          create: payerRecords,
         },
         fileKey,
         addedBy: currentUserId,
@@ -222,7 +207,6 @@ export async function editExpense(
     splitType,
     currency,
     participants,
-    payers,
     expenseDate,
     fileKey,
     transactionId,
@@ -251,9 +235,6 @@ export async function editExpense(
     throw new Error('Expense not found');
   }
 
-  // Build payer records
-  const payerRecords = payers && payers.length > 0 ? payers : [{ userId: paidBy, amount }];
-
   // Determine if this is a template or derived expense
   const templateId = expense.recurrence?.job?.command
     ? extractTemplateExpenseId(expense.recurrence.job.command)
@@ -262,7 +243,7 @@ export async function editExpense(
 
   const operations = [];
 
-  // Delete existing participants and payers
+  // Delete existing participants
   operations.push(
     db.expenseParticipant.deleteMany({
       where: {
@@ -270,15 +251,8 @@ export async function editExpense(
       },
     }),
   );
-  operations.push(
-    db.expensePayer.deleteMany({
-      where: {
-        expenseId: expense.conversionToId ? { in: [expenseId, expense.conversionToId] } : expenseId,
-      },
-    }),
-  );
 
-  // Update expense with new details and create new participants + payers
+  // Update expense with new details and create new participants
   operations.push(
     db.expense.update({
       where: { id: expenseId },
@@ -292,9 +266,6 @@ export async function editExpense(
         expenseParticipants: {
           create: participants,
         },
-        expensePayers: {
-          create: payerRecords,
-        },
         fileKey,
         transactionId,
         expenseDate,
@@ -306,11 +277,7 @@ export async function editExpense(
     if (!expense.conversionToId) {
       throw new Error('Conversion to expense not found for editing');
     }
-    const { participants: toParticipants, payers: toPayers, ...toExpenseData } = conversionToParams;
-    const toPayerRecords =
-      toPayers && toPayers.length > 0
-        ? toPayers
-        : [{ userId: toExpenseData.paidBy, amount: toExpenseData.amount }];
+    const { participants: toParticipants, ...toExpenseData } = conversionToParams;
 
     operations.push(
       db.expense.update({
@@ -319,9 +286,6 @@ export async function editExpense(
           ...toExpenseData,
           expenseParticipants: {
             create: toParticipants,
-          },
-          expensePayers: {
-            create: toPayerRecords,
           },
           updatedBy: currentUserId,
         },
@@ -366,8 +330,26 @@ export async function getCompleteFriendsDetails(userId: number) {
     },
   });
 
-  const friends = viewBalances.reduce<
-    Record<
+  const friends = viewBalances.reduce(
+    (acc, balance) => {
+      const { friendId } = balance;
+      acc[friendId] ??= {
+        balances: [],
+        id: friendId,
+        email: balance.friend.email,
+        name: balance.friend.name,
+      };
+
+      if (0n !== balance.amount) {
+        acc[friendId]?.balances.push({
+          currency: balance.currency,
+          amount: balance.amount,
+        });
+      }
+
+      return acc;
+    },
+    {} as Record<
       number,
       {
         id: number;
@@ -375,25 +357,8 @@ export async function getCompleteFriendsDetails(userId: number) {
         name?: string | null;
         balances: { currency: string; amount: bigint }[];
       }
-    >
-  >((acc, balance) => {
-    const { friendId } = balance;
-    acc[friendId] ??= {
-      balances: [],
-      id: friendId,
-      email: balance.friend.email,
-      name: balance.friend.name,
-    };
-
-    if (0n !== balance.amount) {
-      acc[friendId]?.balances.push({
-        currency: balance.currency,
-        amount: balance.amount,
-      });
-    }
-
-    return acc;
-  }, {});
+    >,
+  );
 
   return friends;
 }
@@ -424,13 +389,16 @@ export async function importUserBalanceFromSplitWise(
 
   const users = await createUsersFromSplitwise(splitWiseUsers);
 
-  const userMap = users.reduce<Record<string, User>>((acc, user) => {
-    if (user.email) {
-      acc[user.email] = user;
-    }
+  const userMap = users.reduce(
+    (acc, user) => {
+      if (user.email) {
+        acc[user.email] = user;
+      }
 
-    return acc;
-  }, {});
+      return acc;
+    },
+    {} as Record<string, User>,
+  );
 
   const currencyHelperCache: Record<string, ReturnType<typeof getCurrencyHelpers>['toSafeBigInt']> =
     {};
@@ -472,9 +440,6 @@ export async function importUserBalanceFromSplitWise(
                   amount: -amount,
                 },
               ],
-            },
-            expensePayers: {
-              create: [{ userId: currentUserId, amount }],
             },
             addedBy: currentUserId,
             category: DEFAULT_CATEGORY,
@@ -538,13 +503,16 @@ export async function importGroupFromSplitwise(
 
   const users = await createUsersFromSplitwise(Object.values(splitwiseUserMap));
 
-  const userMap = users.reduce<Record<string, User>>((acc, user) => {
-    if (user.email) {
-      acc[user.email] = user;
-    }
+  const userMap = users.reduce(
+    (acc, user) => {
+      if (user.email) {
+        acc[user.email] = user;
+      }
 
-    return acc;
-  }, {});
+      return acc;
+    },
+    {} as Record<string, User>,
+  );
 
   const missingGroups = await Promise.all(
     splitWiseGroups.map(async (group) => {

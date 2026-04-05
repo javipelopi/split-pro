@@ -388,10 +388,7 @@
     "expense": {
       "for": "for",
       "from": "from",
-      "multiple_payers": "Multiple payers",
-      "single_payer": "Single payer",
       "paid_by": "Paid by",
-      "people": "people",
       "received_by": "Received by",
       "to": "to",
       "user": {

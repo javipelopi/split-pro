@@ -116,49 +116,26 @@ const ExpenseDetails: React.FC<ExpenseDetailsProps> = ({ user, expense }) => {
         <div>{expense.fileKey ? <Receipt fileKey={expense.fileKey} /> : null}</div>
       </div>
       <Separator />
-      {expense.expensePayers && expense.expensePayers.length > 1 ? (
-        <div className="mt-10 flex flex-col gap-3">
-          {expense.expensePayers.map((payer) => (
-            <div key={payer.userId} className="flex items-center gap-2">
-              <Link href={payer.userId === user.id ? '/balances' : `/balances/${payer.userId}`}>
-                <Button variant="outline" size="sm" className="gap-2 px-2">
-                  <EntityAvatar entity={payer.user} size={25} />
-                  <span>{displayName(payer.user, user.id)}</span>
-                </Button>
-              </Link>
-              <span className="text-gray-500">
-                {t(
-                  `ui.expense.${payer.userId === user.id ? 'you' : 'user'}.${expense.amount < 0 ? 'received' : 'paid'}`,
-                )}
-              </span>
-              <span className={expense.amount < 0 ? 'text-negative' : 'text-positive'}>
-                {toUIString(payer.amount)}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-10 flex items-center gap-2">
-          <Link
-            href={
-              expense.paidByUser.id === user.id ? '/balances' : `/balances/${expense.paidByUser.id}`
-            }
-          >
-            <Button variant="outline" size="sm" className="gap-2 px-2">
-              <EntityAvatar entity={expense.paidByUser} size={25} />
-              <span>{displayName(expense.paidByUser, user.id)}</span>
-            </Button>
-          </Link>
-          <span className="text-gray-500">
-            {t(
-              `ui.expense.${expense.paidByUser.id === user.id ? 'you' : 'user'}.${expense.amount < 0 ? 'received' : 'paid'}`,
-            )}
-          </span>
-          <span className={expense.amount < 0 ? 'text-negative' : 'text-positive'}>
-            {toUIString(expense.amount)}
-          </span>
-        </div>
-      )}
+      <div className="mt-10 flex items-center gap-2">
+        <Link
+          href={
+            expense.paidByUser.id === user.id ? '/balances' : `/balances/${expense.paidByUser.id}`
+          }
+        >
+          <Button variant="outline" size="sm" className="gap-2 px-2">
+            <EntityAvatar entity={expense.paidByUser} size={25} />
+            <span>{displayName(expense.paidByUser, user.id)}</span>
+          </Button>
+        </Link>
+        <span className="text-gray-500">
+          {t(
+            `ui.expense.${expense.paidByUser.id === user.id ? 'you' : 'user'}.${expense.amount < 0 ? 'received' : 'paid'}`,
+          )}
+        </span>
+        <span className={expense.amount < 0 ? 'text-negative' : 'text-positive'}>
+          {toUIString(expense.amount)}
+        </span>
+      </div>
       <div className="mt-4 ml-14 flex flex-col gap-4">
         {expense.expenseParticipants
           .filter((participant) => 0n !== participant.amount)

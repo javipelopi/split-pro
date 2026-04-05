@@ -28,7 +28,6 @@ const AddPage: NextPageWithUser<{
     setAmount,
     setDescription,
     setPaidBy,
-    setPayers,
     setAmountStr,
     setExpenseDate,
     setCategory,
@@ -105,14 +104,6 @@ const AddPage: NextPageWithUser<{
       setGroup(expenseQuery.data.group);
     }
     setPaidBy(expenseQuery.data.paidByUser);
-    if (expenseQuery.data.expensePayers && expenseQuery.data.expensePayers.length > 0) {
-      setPayers(
-        expenseQuery.data.expensePayers.map((ep) => ({
-          user: ep.user,
-          amount: ep.amount,
-        })),
-      );
-    }
     setCurrency(parseCurrencyCode(expenseQuery.data.currency));
     setAmountStr(
       getCurrencyHelpersCached(expenseQuery.data.currency).toUIString(
@@ -158,7 +149,6 @@ const AddPage: NextPageWithUser<{
     setExpenseDate,
     setGroup,
     setPaidBy,
-    setPayers,
     setParticipants,
     setCronExpression,
     setFileKey,
