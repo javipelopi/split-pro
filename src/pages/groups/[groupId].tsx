@@ -218,6 +218,77 @@ const BalancePage: NextPageWithUser<{
                   )}
                 </div>
 
+                {isAdmin && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <p className="text-sm text-gray-400">
+                      {t('group_details.group_info.default_currency', 'Default currency')}
+                    </p>
+                    <select
+                      className="rounded-md border border-gray-600 bg-transparent px-2 py-1 text-sm"
+                      defaultValue={groupDetailQuery.data?.defaultCurrency ?? 'USD'}
+                      disabled={isArchived}
+                      onChange={async (e) => {
+                        try {
+                          await updateGroupDetailsMutation.mutateAsync({
+                            groupId,
+                            name: groupDetailQuery.data?.name ?? '',
+                            defaultCurrency: e.target.value,
+                          });
+                          toast.success(t('ui.messages.currency_updated', 'Currency updated'), {
+                            duration: 1500,
+                          });
+                          await groupDetailQuery.refetch();
+                        } catch {
+                          toast.error(t('errors.setting_update_failed'));
+                        }
+                      }}
+                    >
+                      {[
+                        'USD',
+                        'EUR',
+                        'GBP',
+                        'CHF',
+                        'JPY',
+                        'CAD',
+                        'AUD',
+                        'CNY',
+                        'INR',
+                        'BRL',
+                        'MXN',
+                        'SEK',
+                        'NOK',
+                        'DKK',
+                        'PLN',
+                        'CZK',
+                        'HUF',
+                        'RON',
+                        'BGN',
+                        'HRK',
+                        'TRY',
+                        'ZAR',
+                        'KRW',
+                        'SGD',
+                        'HKD',
+                        'NZD',
+                        'THB',
+                        'PHP',
+                        'IDR',
+                        'MYR',
+                        'VND',
+                        'ARS',
+                        'CLP',
+                        'COP',
+                        'PEN',
+                        'UYU',
+                      ].map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <p className="mt-5 font-semibold">{t('group_details.group_info.members')}</p>
                 <div className="mt-2 flex flex-col gap-2">
                   {groupDetailQuery.data?.groupUsers.map((groupUser) => (

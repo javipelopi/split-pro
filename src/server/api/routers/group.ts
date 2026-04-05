@@ -277,7 +277,14 @@ export const groupRouter = createTRPCRouter({
     }),
 
   updateGroupDetails: groupProcedure
-    .input(z.object({ name: z.string().min(1), groupId: z.number() }))
+    .input(
+      z.object({
+        groupId: z.number(),
+        name: z.string().min(1),
+        defaultCurrency: z.string().optional(),
+        simplifyDebts: z.boolean().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const group = await ctx.db.group.findUnique({
         where: {
@@ -299,6 +306,8 @@ export const groupRouter = createTRPCRouter({
         },
         data: {
           name: input.name,
+          ...(input.defaultCurrency !== undefined && { defaultCurrency: input.defaultCurrency }),
+          ...(input.simplifyDebts !== undefined && { simplifyDebts: input.simplifyDebts }),
         },
       });
 
