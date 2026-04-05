@@ -61,3 +61,7 @@ SEED_STATISTICS.md
 # Agents
 .worktrees/
 docs/superpowers/
+.beads/
+.claude/
+.runtime/
+CLAUDE.md
