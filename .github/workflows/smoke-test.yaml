@@ -26,23 +26,6 @@ jobs:
     name: Runtime smoke test
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        # pgvector/pg_cron-capable Postgres. Using the same image family as
-        # `docker/dev/compose.yml` so dev and CI agree on what's installed.
-        image: ossapps/postgres:17.7-trixie
-        env:
-          POSTGRES_USER: splitpro
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: splitpro
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U splitpro -d splitpro"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
     env:
       DATABASE_URL: postgresql://splitpro:password@localhost:5432/splitpro
       NEXTAUTH_SECRET: ci-smoke-test-secret
@@ -72,21 +55,48 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Wait for postgres + verify pg_cron is available
+      - name: Start Postgres with pg_cron configured
+        # GitHub Actions service containers don't let us override Postgres
+        # command-line flags, but the migration requires pg_cron which in
+        # turn requires `shared_preload_libraries=pg_cron` and
+        # `cron.database_name=splitpro` to be set at server startup. Running
+        # the container manually lets us pass the same -c flags that
+        # docker/dev/compose.yml uses so dev and CI stay in lock step.
         run: |
-          for i in {1..30}; do
+          docker run -d \
+            --name splitpro-smoke-db \
+            -e POSTGRES_USER=splitpro \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_DB=splitpro \
+            -p 5432:5432 \
+            ossapps/postgres:17.7-trixie \
+            postgres \
+            -c shared_preload_libraries=pg_cron \
+            -c cron.database_name=splitpro \
+            -c cron.timezone=UTC
+
+      - name: Wait for Postgres + verify pg_cron is loaded
+        run: |
+          for i in {1..60}; do
             if PGPASSWORD=password psql -h localhost -U splitpro -d splitpro -c 'SELECT 1' >/dev/null 2>&1; then
-              echo "postgres is up"
+              echo "postgres is up after ${i}s"
               break
             fi
             sleep 1
           done
-          # Make sure pg_cron ships with this image — if not, this smoke test
-          # is worthless for catching the bug class it was designed for.
+          # pg_cron must be preloaded, not just available — the migration
+          # will fail with 'unrecognized configuration parameter
+          # "cron.database_name"' if shared_preload_libraries=pg_cron isn't
+          # set, so prove it's loaded before proceeding.
           PGPASSWORD=password psql -h localhost -U splitpro -d splitpro -c \
-            "SELECT default_version FROM pg_available_extensions WHERE name='pg_cron';" \
-            | grep -E '[0-9]+\.[0-9]+' || {
-              echo "::error::pg_cron extension is not available on the smoke test Postgres image"
+            "SHOW shared_preload_libraries;" | grep -q pg_cron || {
+              echo "::error::pg_cron is not in shared_preload_libraries — dev compose and CI are out of sync"
+              docker logs splitpro-smoke-db || true
+              exit 1
+            }
+          PGPASSWORD=password psql -h localhost -U splitpro -d splitpro -c \
+            "SHOW cron.database_name;" || {
+              echo "::error::cron.database_name not configured"
               exit 1
             }
 
@@ -174,3 +184,9 @@ jobs:
           if [ -f /tmp/smoke/app.pid ]; then
             kill "$(cat /tmp/smoke/app.pid)" 2>/dev/null || true
           fi
+
+      - name: Stop Postgres
+        if: always()
+        run: |
+          docker logs splitpro-smoke-db 2>&1 | tail -50 || true
+          docker rm -f splitpro-smoke-db || true
