@@ -1,9 +1,9 @@
-import { type Group, SplitType, type User } from '@prisma/client';
+import { type Group, type GroupUser, SplitType, type User } from '@prisma/client';
 import Router from 'next/router';
 import { create } from 'zustand';
 
 import { DEFAULT_CATEGORY } from '~/lib/category';
-import { type CurrencyCode } from '~/lib/currency';
+import { type CurrencyCode, parseCurrencyCode } from '~/lib/currency';
 import type { TransactionAddInputModel } from '~/types';
 import { shuffleArray } from '~/utils/array';
 import { BigMath } from '~/utils/numbers';
@@ -15,6 +15,7 @@ export interface Payer {
   user: User;
   amount: bigint;
 }
+export type GroupWithUsers = Group & { groupUsers: (GroupUser & { user: User })[] };
 
 export interface AddExpenseState {
   amount: bigint;
@@ -46,6 +47,7 @@ export interface AddExpenseState {
     setAmountStr: (amountStr: string) => void;
     setSplitType: (splitType: SplitType) => void;
     setGroup: (group: Group | undefined) => void;
+    initializeGroupExpense: (group: GroupWithUsers) => void;
     addOrUpdateParticipant: (user: Participant) => void;
     setSplitShare: (splitType: SplitType, userId: number, share: bigint) => void;
     setParticipants: (
@@ -132,6 +134,28 @@ export const useAddExpenseStore = create<AddExpenseState>()((set) => ({
       }),
     setGroup: (group) => {
       set({ group });
+    },
+    initializeGroupExpense: (group) => {
+      const { currentUser, actions } = useAddExpenseStore.getState();
+      if (!currentUser) {
+        return;
+      }
+      actions.setGroup(group);
+      if (group.defaultCurrency) {
+        actions.setCurrency(parseCurrencyCode(group.defaultCurrency));
+      }
+      const weightMap = Object.fromEntries(
+        group.groupUsers.map((gu) => [gu.userId, BigInt(gu.weight ?? 1)]),
+      );
+      actions.setParticipants(
+        [
+          currentUser,
+          ...group.groupUsers.map((gu) => gu.user).filter((u) => u.id !== currentUser.id),
+        ],
+        undefined,
+        weightMap,
+      );
+      set({ showFriends: false, nameOrEmail: '' });
     },
     addOrUpdateParticipant: (user) =>
       set((state) => {

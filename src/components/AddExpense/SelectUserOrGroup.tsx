@@ -1,14 +1,13 @@
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { UserPlusIcon } from '@heroicons/react/24/solid';
-import { type Group, type GroupUser, type User } from '@prisma/client';
+import { type User } from '@prisma/client';
 import { SendIcon } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Image from 'next/image';
 import React, { useCallback } from 'react';
 import { z } from 'zod';
 
-import { parseCurrencyCode } from '~/lib/currency';
-import { useAddExpenseStore } from '~/store/addStore';
+import { type GroupWithUsers, useAddExpenseStore } from '~/store/addStore';
 import { api } from '~/utils/api';
 
 import { EntityAvatar } from '../ui/avatar';
@@ -21,14 +20,8 @@ export const SelectUserOrGroup: React.FC<{
   const nameOrEmail = useAddExpenseStore((s) => s.nameOrEmail);
   const participants = useAddExpenseStore((s) => s.participants);
   const group = useAddExpenseStore((s) => s.group);
-  const {
-    addOrUpdateParticipant,
-    removeParticipant,
-    setCurrency,
-    setNameOrEmail,
-    setGroup,
-    setParticipants,
-  } = useAddExpenseStore((s) => s.actions);
+  const { addOrUpdateParticipant, removeParticipant, setNameOrEmail, initializeGroupExpense } =
+    useAddExpenseStore((s) => s.actions);
 
   const friendsQuery = api.user.getFriends.useQuery();
   const groupsQuery = api.group.getAllGroups.useQuery();
@@ -83,26 +76,10 @@ export const SelectUserOrGroup: React.FC<{
   );
 
   const onGroupSelect = useCallback(
-    (group: Group & { groupUsers: (GroupUser & { user: User })[] }) => {
-      setGroup(group);
-      setCurrency(parseCurrencyCode(group.defaultCurrency));
-      const { currentUser } = useAddExpenseStore.getState();
-      if (currentUser) {
-        const weightMap = Object.fromEntries(
-          group.groupUsers.map((gu) => [gu.userId, BigInt(gu.weight)]),
-        );
-        setParticipants(
-          [
-            currentUser,
-            ...group.groupUsers.map((gu) => gu.user).filter((u) => u.id !== currentUser.id),
-          ],
-          undefined,
-          weightMap,
-        );
-      }
-      setNameOrEmail('');
+    (selectedGroup: GroupWithUsers) => {
+      initializeGroupExpense(selectedGroup);
     },
-    [setGroup, setCurrency, setParticipants, setNameOrEmail],
+    [initializeGroupExpense],
   );
 
   const handleAddEmailClickFalse = useCallback(() => onAddEmailClick(false), [onAddEmailClick]);

@@ -23,6 +23,7 @@ const AddPage: NextPageWithUser<{
   const {
     setCurrentUser,
     setGroup,
+    initializeGroupExpense,
     setParticipants,
     setCurrency,
     setAmount,
@@ -75,40 +76,10 @@ const AddPage: NextPageWithUser<{
   );
 
   useEffect(() => {
-    // Set group
     if (groupId && !groupQuery.isPending && groupQuery.data && currentUser) {
-      setGroup(groupQuery.data);
-
-      // Set currency from group default
-      if (groupQuery.data.defaultCurrency) {
-        setCurrency(parseCurrencyCode(groupQuery.data.defaultCurrency));
-      }
-
-      const weightMap = Object.fromEntries(
-        groupQuery.data.groupUsers.map((gu) => [gu.userId, BigInt(gu.weight ?? 1)]),
-      );
-      setParticipants(
-        [
-          currentUser,
-          ...groupQuery.data.groupUsers
-            .map((gu) => gu.user)
-            .filter((user) => user.id !== currentUser.id),
-        ],
-        undefined,
-        weightMap,
-      );
-
-      useAddExpenseStore.setState({ showFriends: false });
+      initializeGroupExpense(groupQuery.data);
     }
-  }, [
-    groupId,
-    groupQuery.isPending,
-    groupQuery.data,
-    currentUser,
-    setGroup,
-    setParticipants,
-    setCurrency,
-  ]);
+  }, [groupId, groupQuery.isPending, groupQuery.data, currentUser, initializeGroupExpense]);
 
   useEffect(() => {
     if (friendId && currentUser && friendQuery.data) {
