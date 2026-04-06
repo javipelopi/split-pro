@@ -1,6 +1,5 @@
 import type { BalanceView, User } from '@prisma/client';
-import { clsx } from 'clsx';
-import { type ComponentProps, Fragment, useCallback, useMemo } from 'react';
+import { type ComponentProps, Fragment, useMemo } from 'react';
 import { EntityAvatar } from '~/components/ui/avatar';
 import { api } from '~/utils/api';
 import { BigMath } from '~/utils/numbers';
@@ -9,6 +8,7 @@ import { useTranslationWithUtils } from '~/hooks/useTranslationWithUtils';
 import { CurrencyConversion } from '../Friend/CurrencyConversion';
 import { GroupSettleUp } from '../Friend/GroupSettleup';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+import { BalanceDisplay } from '../ui/BalanceDisplay';
 import { Button } from '../ui/button';
 import { CURRENCY_CONVERSION_ICON, SETTLEUP_ICON } from '../ui/categoryIcons';
 import { toast } from 'sonner';
@@ -23,7 +23,7 @@ export const BalanceList: React.FC<{
   groupBalances?: BalanceView[];
   users?: User[];
 }> = ({ groupBalances = [], users = [] }) => {
-  const { displayName, t, getCurrencyHelpersCached } = useTranslationWithUtils();
+  const { displayName, t } = useTranslationWithUtils();
   const userQuery = api.user.me.useQuery();
 
   const addOrEditCurrencyConversionMutation = api.expense.addOrEditCurrencyConversion.useMutation();
@@ -96,16 +96,11 @@ export const BalanceList: React.FC<{
                           `ui.expense.${isCurrentUser ? 'you' : 'user'}.${0 < totalAmount[1] ? 'lent' : 'owe'}`,
                         )}{' '}
                       </span>
-                      <span
-                        className={clsx(
-                          'text-right',
-                          0 < totalAmount[1] ? 'text-emerald-500' : 'text-orange-600',
-                        )}
-                      >
-                        {getCurrencyHelpersCached(totalAmount[0]).toUIString(
-                          BigMath.abs(totalAmount[1]),
-                        )}
-                      </span>
+                      <BalanceDisplay
+                        className="text-right"
+                        amount={totalAmount[1]}
+                        currency={totalAmount[0]}
+                      />
                     </>
                   )}
                 </div>
@@ -113,7 +108,7 @@ export const BalanceList: React.FC<{
             </AccordionTrigger>
             <AccordionContent>
               {Object.entries(balances).map(([friendId, perFriendBalances]) => {
-                const friend = userMap[+friendId]!.user;
+                const friend = userMap[Number(friendId)]!.user;
 
                 return (
                   <Fragment key={friendId}>
@@ -152,14 +147,11 @@ export const BalanceList: React.FC<{
                                   `ui.expense.${friend.id === userQuery.data?.id ? 'you' : 'user'}.${0 > amount ? 'get' : 'pay'}`,
                                 )}{' '}
                               </span>
-                              <span
-                                className={clsx(
-                                  'text-right',
-                                  0 < amount ? 'text-emerald-500' : 'text-orange-600',
-                                )}
-                              >
-                                {getCurrencyHelpersCached(currency).toUIString(BigMath.abs(amount))}
-                              </span>
+                              <BalanceDisplay
+                                className="text-right"
+                                amount={amount}
+                                currency={currency}
+                              />
                               <span className="xs:inline hidden text-gray-400">
                                 {' '}
                                 {t(`ui.expense.${0 < amount ? 'to' : 'from'}`, {

@@ -11,6 +11,7 @@ import { currencyConversion } from '~/utils/numbers';
 import { isCurrencyCode } from '~/lib/currency';
 import { cn } from '~/lib/utils';
 import { SHOW_ALL_VALUE, useCurrencyPreferenceStore } from '~/store/currencyPreferenceStore';
+import { BalanceDisplay } from '../ui/BalanceDisplay';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -137,15 +138,15 @@ export const ConvertibleBalance: React.FC<ConvertibleBalanceProps> = ({
   }, [shouldShowAll, balances, ratesQuery, selectedCurrency, t, setSelectedCurrency]);
 
   if (0 === balances.length) {
-    return <AmountDisplay className={className} amount={0n} currency="USD" />;
+    return <BalanceDisplay className={className} amount={0n} currency="USD" />;
   }
 
   // If only one currency, no conversion needed
   if (1 === balances.length && !forceShowButton) {
     const balance = balances[0]!;
     return (
-      <AmountDisplay
-        withText={withText}
+      <BalanceDisplay
+        variant={withText ? 'full' : 'compact'}
         className={className}
         amount={balance.amount}
         currency={balance.currency}
@@ -201,8 +202,8 @@ export const ConvertibleBalance: React.FC<ConvertibleBalanceProps> = ({
         {shouldShowAll ? (
           balances.map((balance, idx) => (
             <React.Fragment key={balance.currency}>
-              <AmountDisplay
-                withText={withText}
+              <BalanceDisplay
+                variant={withText ? 'full' : 'compact'}
                 amount={balance.amount}
                 currency={balance.currency}
               />
@@ -214,8 +215,8 @@ export const ConvertibleBalance: React.FC<ConvertibleBalanceProps> = ({
         ) : ratesQuery.isLoading ? (
           <Skeleton className="h-5 w-20" />
         ) : (
-          <AmountDisplay
-            withText={withText}
+          <BalanceDisplay
+            variant={withText ? 'full' : 'compact'}
             className={className}
             amount={totalConvertedAmount ? totalConvertedAmount : balances[0]!.amount}
             currency={totalConvertedAmount ? selectedCurrency : balances[0]!.currency}
@@ -226,40 +227,5 @@ export const ConvertibleBalance: React.FC<ConvertibleBalanceProps> = ({
         )}
       </div>
     </span>
-  );
-};
-
-const AmountDisplay: React.FC<{
-  className?: string;
-  amount: bigint;
-  currency: string;
-  withText?: boolean;
-  hasMore?: boolean;
-}> = ({ className = '', amount, currency, withText = false, hasMore = false }) => {
-  const { t, getCurrencyHelpersCached } = useTranslationWithUtils();
-
-  if (amount === 0n) {
-    return <span className={cn('text-gray-500', className)}>{t('ui.settled_up')}</span>;
-  }
-
-  const isPositive = amount > 0n;
-  return (
-    <div>
-      {withText && (
-        <div
-          className={cn(
-            'text-right text-xs',
-            isPositive ? 'text-positive' : 'text-negative',
-            className,
-          )}
-        >
-          {t('actors.you')} {t(`ui.expense.you.${isPositive ? 'lent' : 'owe'}`)}
-        </div>
-      )}
-      <span className={cn(isPositive ? 'text-positive' : 'text-negative', className)}>
-        {getCurrencyHelpersCached(currency).toUIString(amount)}
-        {hasMore && `+`}
-      </span>
-    </div>
   );
 };
