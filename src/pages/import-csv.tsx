@@ -125,6 +125,17 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   const payer = groupMembers.find((m) => m.id === expense.paidBy);
   const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
   const isLocked = parsed.locked;
+  const { toUIString, toSafeBigInt } = getCurrencyHelpers({ currency: groupCurrency });
+  const payerLabel =
+    expense.payers.length > 1
+      ? expense.payers
+          .map((p) => {
+            const m = groupMembers.find((gm) => gm.id === p.userId);
+            const name = m?.name ?? m?.email ?? `#${p.userId}`;
+            return `${name} ${toUIString(toSafeBigInt(p.amount))}`;
+          })
+          .join(' + ')
+      : (payer?.name ?? payer?.email ?? null);
 
   const handleToggleSelection = useCallback(
     () => onToggleSelection(index),
@@ -192,7 +203,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           <span className="truncate font-medium">{expense.description}</span>
           <span className="text-muted-foreground text-xs">
             {expense.date.toLocaleDateString()}
-            {payer ? ` · ${payer.name ?? payer.email}` : ''}
+            {payerLabel ? ` · ${payerLabel}` : ''}
             {'SETTLEMENT' === expense.splitType
               ? ` · ${t('import_csv.steps.preview.transfer_label')}`
               : ''}
