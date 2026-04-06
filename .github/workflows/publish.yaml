@@ -11,19 +11,163 @@ permissions:
   packages: write
 
 jobs:
-  # Gate every Docker build on a full runtime smoke test: migrations run, the
-  # app boots against a real pg_cron-capable Postgres, /api/health reports ok,
-  # and the startup logs contain no prisma:error lines. This catches the class
-  # of bugs where `src/instrumentation.ts` swallows setup failures via
-  # `.catch(console.error)` — the previous release (v0.6.0) shipped a broken
-  # pg_cron `$$`-quoted SQL call that only surfaced at runtime in production.
+  # Fast source-based smoke test: pnpm install + build + start. Catches
+  # runtime code bugs in src/instrumentation.ts and anything it calls —
+  # the class of bug that killed v0.6.0 (pg_cron $$-quoted SQL).
   smoke:
-    name: Smoke test
+    name: Source smoke test
     uses: ./.github/workflows/smoke-test.yaml
+
+  # Image-based smoke test: builds the exact Dockerfile that ships to
+  # production (linux/amd64 only — arm64 would need emulation) and runs
+  # it against a pg_cron-enabled Postgres on a Docker network, then
+  # polls /api/health the same way the source smoke test does. This
+  # catches Dockerfile bugs, start.sh bugs, standalone-output bugs, and
+  # anything else that only manifests inside the published container —
+  # the failure modes the source smoke test can't see.
+  #
+  # Builds with GHA cache scope 'amd64' so the subsequent publish build
+  # matrix hits a populated cache and doesn't re-do the full compile.
+  image-smoke:
+    name: Image smoke test
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create isolated network
+        run: docker network create splitpro-smoke
+
+      - name: Start Postgres with pg_cron configured
+        run: |
+          docker run -d \
+            --name splitpro-smoke-db \
+            --network splitpro-smoke \
+            -e POSTGRES_USER=splitpro \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_DB=splitpro \
+            ossapps/postgres:17.7-trixie \
+            postgres \
+            -c shared_preload_libraries=pg_cron \
+            -c cron.database_name=splitpro \
+            -c cron.timezone=UTC
+
+      - name: Wait for Postgres + verify pg_cron is loaded
+        run: |
+          docker run --rm --network splitpro-smoke \
+            -e PGPASSWORD=password \
+            postgres:17-alpine bash -c '
+              for i in $(seq 1 60); do
+                if psql -h splitpro-smoke-db -U splitpro -d splitpro -c "SELECT 1" >/dev/null 2>&1; then
+                  echo "postgres is up after ${i}s"
+                  break
+                fi
+                sleep 1
+              done
+              psql -h splitpro-smoke-db -U splitpro -d splitpro -c "SHOW shared_preload_libraries;" | grep -q pg_cron
+            '
+
+      - name: Build image (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          platforms: linux/amd64
+          # Match the cache scope used by the publish build job so the
+          # subsequent build-and-push hits the cache we just populated.
+          cache-from: type=gha,scope=amd64
+          cache-to: type=gha,mode=min,scope=amd64
+          build-args: |
+            APP_VERSION=smoke-test
+          tags: splitpro-smoke:test
+
+      - name: Start app container
+        run: |
+          docker run -d \
+            --name splitpro-smoke-app \
+            --network splitpro-smoke \
+            -p 3000:3000 \
+            -e DATABASE_URL=postgresql://splitpro:password@splitpro-smoke-db:5432/splitpro \
+            -e NEXTAUTH_SECRET=ci-image-smoke-secret \
+            -e NEXTAUTH_URL=http://localhost:3000 \
+            -e ENABLE_SENDING_INVITES=false \
+            -e CLEAR_CACHE_CRON_RULE='0 2 * * 0' \
+            -e CACHE_RETENTION_INTERVAL='2 days' \
+            splitpro-smoke:test
+
+      - name: Wait for /api/health to report ok
+        run: |
+          # start.sh runs `prisma migrate deploy` before `node server.js`,
+          # then instrumentation fires inside a 10s setTimeout, so we give
+          # the container up to 3 minutes to settle before failing.
+          for i in $(seq 1 90); do
+            if body=$(curl -sS --max-time 5 http://localhost:3000/api/health 2>/dev/null); then
+              echo "[${i}] health body: $body"
+              status=$(echo "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{console.log(JSON.parse(s).status)}catch{console.log('parse-error')}})")
+              pending=$(echo "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{console.log(JSON.parse(s).checks.filter(c=>c.status==='pending').length)}catch{console.log('parse-error')}})")
+              if [ "$status" = "ok" ] && [ "$pending" = "0" ]; then
+                echo "health is ok with no pending checks"
+                exit 0
+              fi
+              if [ "$status" = "degraded" ]; then
+                echo "::error::/api/health reports degraded from the image: $body"
+                exit 1
+              fi
+            fi
+            sleep 2
+          done
+          echo "::error::/api/health on the image did not reach ok within 180s"
+          exit 1
+
+      - name: Hit key routes against the image
+        run: |
+          set -e
+          for route in / /en/home /en/add /en/balances /en/groups; do
+            code=$(curl -sS -L -o /dev/null -w "%{http_code}" "http://localhost:3000${route}")
+            echo "$route -> $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::Route $route on the image returned HTTP $code"
+              exit 1
+            fi
+          done
+
+      - name: Scan container logs for prisma errors
+        run: |
+          if docker logs splitpro-smoke-app 2>&1 | grep -E '^prisma:error|PrismaClientKnownRequestError|PrismaClientUnknownRequestError'; then
+            echo "::error::Image startup logs contain prisma errors"
+            exit 1
+          fi
+          if docker logs splitpro-smoke-app 2>&1 | grep -E 'Error creating recurring|Error creating cron'; then
+            echo "::error::Image startup logs contain background task errors"
+            exit 1
+          fi
+          echo "No prisma errors or background task errors detected in image logs"
+
+      - name: Dump container logs (always)
+        if: always()
+        run: |
+          echo '::group::App container logs'
+          docker logs splitpro-smoke-app 2>&1 || true
+          echo '::endgroup::'
+          echo '::group::Postgres logs (last 50 lines)'
+          docker logs splitpro-smoke-db 2>&1 | tail -50 || true
+          echo '::endgroup::'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f splitpro-smoke-app splitpro-smoke-db || true
+          docker network rm splitpro-smoke || true
 
   build:
     name: Build ${{ matrix.platform }}
-    needs: smoke
+    needs: image-smoke
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
