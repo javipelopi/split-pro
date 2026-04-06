@@ -354,12 +354,28 @@ export const AddOrEditExpensePage: React.FC<{
                 </div>
 
                 <div className="mt-4 flex items-start justify-between sm:mt-10">
-                  <DateSelector
-                    mode="single"
-                    required
-                    selected={expenseDate}
-                    onSelect={setExpenseDate}
-                  />
+                  <div className="flex items-center gap-1">
+                    <DateSelector
+                      mode="single"
+                      required
+                      selected={expenseDate}
+                      onSelect={setExpenseDate}
+                    />
+                    {!expenseId && (
+                      <RecurrenceInput>
+                        <Button variant="ghost" size="sm" className="px-2">
+                          <RefreshCcwDot
+                            className={cn(
+                              cronExpression && 'text-primary',
+                              (!amtStr || !description) && 'invisible',
+                              'size-5',
+                            )}
+                          />
+                          <span className="sr-only">Toggle recurring expense options</span>
+                        </Button>
+                      </RecurrenceInput>
+                    )}
+                  </div>
                   <div className="flex items-center gap-4">
                     <UploadFile />
                     <Button
@@ -383,20 +399,6 @@ export const AddOrEditExpensePage: React.FC<{
             ) : null}
           </div>
           <div className="flex items-center justify-evenly px-4 lg:px-0">
-            {!expenseId && (
-              <RecurrenceInput>
-                <Button variant="ghost" size="sm">
-                  <RefreshCcwDot
-                    className={cn(
-                      cronExpression && 'text-primary',
-                      (!amtStr || !description) && 'invisible',
-                      'size-6',
-                    )}
-                  />
-                  <span className="sr-only">Toggle recurring expense options</span>
-                </Button>
-              </RecurrenceInput>
-            )}
             <div className="flex gap-2">
               <AddBankTransactions bankConnectionEnabled={bankConnectionEnabled}>
                 <Button
