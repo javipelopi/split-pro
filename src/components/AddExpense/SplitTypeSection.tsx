@@ -193,6 +193,7 @@ const MultiPayerRow: React.FC<{
           currency={currency}
           className="w-28 text-right text-sm"
           onValueChange={onValueChange}
+          disableCalculator
         />
       )}
     </div>
@@ -494,6 +495,7 @@ const ParticipantRow = ({
             currency={currency}
             className="ml-2 text-right"
             onValueChange={onCurrencyInputValueChange}
+            disableCalculator
           />
         </div>
       ) : (

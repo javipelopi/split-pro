@@ -67,6 +67,7 @@
   },
   "actions": {
     "add_expense": "Add expense",
+    "apply": "Apply",
     "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
@@ -86,6 +87,14 @@
     "submit": "Submit",
     "reconnect": "Reconnect",
     "connect": "Connect"
+  },
+  "calculator": {
+    "title": "Calculator",
+    "open": "Open calculator",
+    "expression_placeholder": "Enter expression",
+    "clear": "Clear",
+    "backspace": "Backspace",
+    "error": "Invalid expression"
   },
   "actors": {
     "all": "All",
