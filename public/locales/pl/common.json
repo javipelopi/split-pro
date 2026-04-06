@@ -174,10 +174,7 @@
       "pick_a_date": "Wybierz datę",
       "select_user_or_group": {
         "add_to_split_pro": "Dodaj do Split Pro",
-        "note": "Uwaga: wysyłanie zaproszeń jest obecnie wyłączone z powodu spamu",
-        "only_one_group_time": "Możesz mieć tylko jedną grupę naraz",
-        "send_invite": "Wyślij zaproszenie do użytkownika",
-        "warning": "Ostrzeżenie: Nie używaj wysyłania zaproszenia, jeśli to nieprawidłowy email. Zamiast tego użyj dodaj do Split Pro. Twoje konto zostanie zablokowane, jeśli ta funkcja będzie nadużywana"
+        "only_one_group_time": "Możesz mieć tylko jedną grupę naraz"
       },
       "split_type_section": {
         "split_equally": "podzielone równo",
@@ -309,11 +306,8 @@
       "add_members": "Dodaj członków",
       "add_members_details": {
         "add_to_split_pro": "Dodaj do Split Pro",
-        "note": "Uwaga: wysyłanie zaproszeń jest obecnie wyłączone z powodu spamu",
         "placeholder": "Wprowadź imię lub email",
-        "send_invite": "Wyślij zaproszenie do użytkownika",
-        "title": "Dodaj członków",
-        "warning": "Ostrzeżenie: Nie używaj wysyłania zaproszenia, jeśli to nieprawidłowy email. Zamiast tego użyj dodaj do Split Pro. Twoje konto zostanie zablokowane, jeśli ta funkcja będzie nadużywana"
+        "title": "Dodaj członków"
       },
       "invite_link": "",
       "no_members": "Brak członków w grupie."

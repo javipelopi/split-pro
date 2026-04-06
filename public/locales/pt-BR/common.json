@@ -171,10 +171,7 @@
       "pick_a_date": "Selecione uma data",
       "select_user_or_group": {
         "add_to_split_pro": "Adicionar ao Split Pro",
-        "note": "Aviso: o envio de convites está desabilitado para evitar spam",
-        "only_one_group_time": "Só é possível ter um grupo por vez",
-        "send_invite": "Enviar convite para usuário",
-        "warning": "Atenção: Não envie um convite se o e-mail for inválido. Use a opção de adicionar ao Split Pro em vez disso. O uso indevido dos convites resultará no bloqueio da sua conta"
+        "only_one_group_time": "Só é possível ter um grupo por vez"
       },
       "split_type_section": {
         "split_equally": "dividido igualmente",
@@ -297,11 +294,8 @@
       "add_members": "Adicionar membros",
       "add_members_details": {
         "add_to_split_pro": "Adicionar ao Split Pro",
-        "note": "Aviso: o envio de convites por e-mail está desativado",
         "placeholder": "Insira nome ou e-mail",
-        "send_invite": "Enviar convite para usuário",
-        "title": "Adicionar membros",
-        "warning": "Atenção: Não envie um convite para um e-mail inválido. Em vez disso, use \"adicionar ao Split Pro\". O uso indevido de convites resultará no bloqueio da sua conta"
+        "title": "Adicionar membros"
       },
       "invite_link": "Link de convite",
       "no_members": "Ainda não há membros no grupo."

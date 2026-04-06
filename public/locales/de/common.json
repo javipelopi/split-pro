@@ -174,10 +174,7 @@
       "pick_a_date": "Datum wählen",
       "select_user_or_group": {
         "add_to_split_pro": "Nutzer hinzufügen",
-        "note": "Hinweis: Einladung senden ist momentan wegen Spam deaktiviert",
-        "only_one_group_time": "Du kannst jeweils nur eine Gruppe haben",
-        "send_invite": "Einladung an Nutzer senden",
-        "warning": "Warnung: Versende keine Einladungen an ungültige E-Mail-Adressen. Nutze stattdessen 'Zu Split Pro hinzufügen'. Dein Konto wird bei Missbrauch gesperrt"
+        "only_one_group_time": "Du kannst jeweils nur eine Gruppe haben"
       },
       "split_type_section": {
         "split_equally": "gleichmäßig verteilt",
@@ -300,11 +297,8 @@
       "add_members": "Mitglied hinzufügen",
       "add_members_details": {
         "add_to_split_pro": "Benutzer hinzufügen",
-        "note": "Hinweis: Das Versenden von E-Mail-Einladungen ist deaktiviert",
         "placeholder": "Name oder E-Mail eingeben",
-        "send_invite": "Einladung senden",
-        "title": "Mitglied hinzufügen",
-        "warning": "Warnung: Verwende 'Einladung senden' nicht bei ungültiger E-Mail. Nutze stattdessen 'Benutzer hinzufügen'. Dein Konto wird bei Missbrauch gesperrt"
+        "title": "Mitglied hinzufügen"
       },
       "invite_link": "Einladungs-Link",
       "no_members": "Diese Gruppe hat noch keine Mitglieder."

@@ -171,10 +171,7 @@
       "pick_a_date": "",
       "select_user_or_group": {
         "add_to_split_pro": "",
-        "note": "",
-        "only_one_group_time": "",
-        "send_invite": "",
-        "warning": ""
+        "only_one_group_time": ""
       },
       "split_type_section": {
         "split_equally": "",
@@ -297,11 +294,8 @@
       "add_members": "",
       "add_members_details": {
         "add_to_split_pro": "",
-        "note": "",
         "placeholder": "",
-        "send_invite": "",
-        "title": "",
-        "warning": ""
+        "title": ""
       },
       "invite_link": "",
       "no_members": ""

@@ -1,7 +1,6 @@
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { UserPlusIcon } from '@heroicons/react/24/solid';
 import { type User } from '@prisma/client';
-import { SendIcon } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Image from 'next/image';
 import React, { useCallback } from 'react';
@@ -13,9 +12,7 @@ import { api } from '~/utils/api';
 import { EntityAvatar } from '../ui/avatar';
 import { Button } from '../ui/button';
 
-export const SelectUserOrGroup: React.FC<{
-  enableSendingInvites: boolean;
-}> = ({ enableSendingInvites }) => {
+export const SelectUserOrGroup: React.FC = () => {
   const { t } = useTranslation();
   const nameOrEmail = useAddExpenseStore((s) => s.nameOrEmail);
   const participants = useAddExpenseStore((s) => s.participants);
@@ -109,29 +106,7 @@ export const SelectUserOrGroup: React.FC<{
   return (
     <div className="mt-1">
       <div>
-        <div>
-          {enableSendingInvites ? (
-            <div className="mt-1 text-orange-600">
-              {isEmail.success
-                ? t('expense_details.add_expense_details.select_user_or_group.warning')
-                : null}
-            </div>
-          ) : (
-            <div>{t('expense_details.add_expense_details.select_user_or_group.note')}</div>
-          )}
-        </div>
         <div className="flex flex-wrap justify-center gap-x-4">
-          {enableSendingInvites && (
-            <Button
-              className="mt-4 text-cyan-500 hover:text-cyan-500"
-              variant="outline"
-              disabled={!isEmail.success}
-              onClick={handleAddEmailClickFalse}
-            >
-              <SendIcon className="mr-2 h-4 w-4" />
-              {t('expense_details.add_expense_details.select_user_or_group.send_invite')}
-            </Button>
-          )}
           <Button
             className="mt-4 text-cyan-500 hover:text-cyan-500"
             variant="outline"

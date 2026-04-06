@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import { AddOrEditExpensePage } from '~/components/AddExpense/AddExpensePage';
 import MainLayout from '~/components/Layout/MainLayout';
-import { env } from '~/env';
 import { cronFromBackend } from '~/lib/cron';
 import { parseCurrencyCode } from '~/lib/currency';
 import { isBankConnectionConfigured } from '~/server/bankTransactionHelper';
@@ -16,9 +15,8 @@ import { useTranslationWithUtils } from '~/hooks/useTranslationWithUtils';
 import { toast } from 'sonner';
 
 const AddPage: NextPageWithUser<{
-  enableSendingInvites: boolean;
   bankConnectionEnabled: boolean;
-}> = ({ user, enableSendingInvites, bankConnectionEnabled }) => {
+}> = ({ user, bankConnectionEnabled }) => {
   const { t, getCurrencyHelpersCached } = useTranslationWithUtils();
   const {
     setCurrentUser,
@@ -166,7 +164,6 @@ const AddPage: NextPageWithUser<{
       <MainLayout hideAppBar>
         {currentUser && (!_expenseId || expenseQuery.data) && (
           <AddOrEditExpensePage
-            enableSendingInvites={enableSendingInvites}
             expenseId={_expenseId}
             bankConnectionEnabled={Boolean(bankConnectionEnabled)}
           />
@@ -182,7 +179,6 @@ export default AddPage;
 
 export const getServerSideProps: GetServerSideProps = async (context) => ({
   props: {
-    enableSendingInvites: Boolean(env.ENABLE_SENDING_INVITES),
     bankConnectionEnabled: isBankConnectionConfigured(),
     ...(await customServerSideTranslations(context.locale, ['common', 'categories', 'currencies'])),
   },

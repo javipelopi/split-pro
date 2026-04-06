@@ -171,10 +171,7 @@
       "pick_a_date": "Välj datum",
       "select_user_or_group": {
         "add_to_split_pro": "Lägg till i SplitPro",
-        "note": "Notera: Skicka inbjudan är för tillfället inaktiverat på grund av spam",
-        "only_one_group_time": "Du kan bara välja en grupp åt gången",
-        "send_invite": "Skicka inbjudan till användare",
-        "warning": "Varning: Skicka inte en inbjudan om det är ogiltig e-postadress. Använd istället lägg till i SplitPro. Ditt konto kommer att blockeras om denna funktion används felaktigt"
+        "only_one_group_time": "Du kan bara välja en grupp åt gången"
       },
       "split_type_section": {
         "split_equally": "dela lika",
@@ -297,11 +294,8 @@
       "add_members": "Lägg till medlemmar",
       "add_members_details": {
         "add_to_split_pro": "Lägg till i Split Pro",
-        "note": "Notera: Skicka inbjudan är inaktiverat för tillfället på grund av skräppost",
         "placeholder": "Ange namn eller email",
-        "send_invite": "Skicka inbjudan till användare",
-        "title": "Lägg till medlemmar",
-        "warning": "Varning: Skicka inte en inbjudan om det är ogiltlig email. Använd istället lägg till i Split Pro. Ditt konto kommer att blockeras om denna funktion används felaktigt"
+        "title": "Lägg till medlemmar"
       },
       "invite_link": "Inbjudningslänk",
       "no_members": "Inga medlemmar i gruppen ännu."

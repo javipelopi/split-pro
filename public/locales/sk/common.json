@@ -171,10 +171,7 @@
       "pick_a_date": "Vyberte dátum",
       "select_user_or_group": {
         "add_to_split_pro": "Pridať do Split Pro",
-        "note": "Poznámka: posielanie pozvánok je zakázané kvôli spamu",
-        "only_one_group_time": "Môžete mať naraz iba jednu skupinu",
-        "send_invite": "Poslať pozvánku používateľovy",
-        "warning": "Upozornenie: Nepoužívajte funkciu odoslať pozvánku, ak je e-mail neplatný. Namiesto toho použite funkciu pridať do Split Pro. Ak túto funkciu budete zneužívať, váš účet bude zablokovaný"
+        "only_one_group_time": "Môžete mať naraz iba jednu skupinu"
       },
       "split_type_section": {
         "split_equally": "rozdeliť rovnomerne",
@@ -297,11 +294,8 @@
       "add_members": "Pridať členov",
       "add_members_details": {
         "add_to_split_pro": "Pridať do Split Pro",
-        "note": "Poznámka: odosielanie e-mailových pozvánok je zakázané",
         "placeholder": "Zadajte meno alebo e-mail",
-        "send_invite": "Poslať pozvánku používateľovi",
-        "title": "Pridať členov",
-        "warning": "Upozornenie: Nepoužívajte funkciu odoslať pozvánku na neplatný e-mail. Namiesto toho použite funkciu pridať do Split Pro. Ak budete túto funkciu zneužívať, váš účet bude zablokovaný"
+        "title": "Pridať členov"
       },
       "invite_link": "Odkaz na pozvanie",
       "no_members": "V skupine zatiaľ nie sú žiadni členovia."

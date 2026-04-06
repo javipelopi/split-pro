@@ -171,10 +171,7 @@
       "pick_a_date": "Fecha",
       "select_user_or_group": {
         "add_to_split_pro": "Añadir a SplitPro",
-        "note": "Nota: el envío de invitaciones está deshabilitado por ahora debido al spam",
-        "only_one_group_time": "Solo puedes tener un grupo a la vez",
-        "send_invite": "Enviar invitación",
-        "warning": "Advertencia: No uses enviar invitación si el correo electrónico no es válido. Usa añadir a SplitPro en su lugar. Tu cuenta será bloqueada si se abusa de esta función"
+        "only_one_group_time": "Solo puedes tener un grupo a la vez"
       },
       "split_type_section": {
         "split_equally": "dividir por igual",
@@ -297,11 +294,8 @@
       "add_members": "Añadir miembros",
       "add_members_details": {
         "add_to_split_pro": "Añadir a SplitPro",
-        "note": "Nota: el envío de invitaciones está deshabilitado",
         "placeholder": "Nombre o correo electrónico",
-        "send_invite": "Enviar invitación",
-        "title": "Añadir miembros",
-        "warning": "Advertencia: No uses enviar invitación si el correo electrónico no es válido. Usa añadir a SplitPro en su lugar. Tu cuenta será bloqueada si se abusa de esta función"
+        "title": "Añadir miembros"
       },
       "invite_link": "Invitar miembros",
       "no_members": "Aún no hay miembros en el grupo."

@@ -1,7 +1,7 @@
 import { UserPlusIcon } from '@heroicons/react/24/solid';
 import { type Group, type GroupUser } from '@prisma/client';
 import { clsx } from 'clsx';
-import { CheckIcon, SendIcon } from 'lucide-react';
+import { CheckIcon } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { z } from 'zod';
@@ -12,13 +12,11 @@ import { api } from '~/utils/api';
 
 import { EntityAvatar } from '../ui/avatar';
 import { Input } from '../ui/input';
-import { env } from '~/env';
 
 const AddMembers: React.FC<{
-  enableSendingInvites: boolean;
   group: (Group & { groupUsers: GroupUser[] }) | null | undefined;
   children: React.ReactNode;
-}> = ({ group, children, enableSendingInvites }) => {
+}> = ({ group, children }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [userIds, setUserIds] = useState<Record<number, boolean>>({});
@@ -34,12 +32,12 @@ const AddMembers: React.FC<{
     return null;
   }
 
-  const groupUserMap = group.groupUsers.reduce(
+  const groupUserMap = group.groupUsers.reduce< Record<string, boolean>>(
     (acc, gu) => {
       acc[gu.userId] = true;
       return acc;
     },
-    {} as Record<string, boolean>,
+    {},
   );
 
   const filteredUsers = friendsQuery.data?.filter(
@@ -126,28 +124,7 @@ const AddMembers: React.FC<{
         onChange={(e) => setInputValue(e.target.value)}
       />
       <div>
-        {enableSendingInvites && !env.NEXT_PUBLIC_IS_CLOUD_DEPLOYMENT ? (
-          <div className="mt-1 text-orange-600">
-            {t('group_details.no_members.add_members_details.warning')}
-          </div>
-        ) : (
-          <div>{t('group_details.no_members.add_members_details.note')}</div>
-        )}
-
         <div className="flex justify-center gap-4">
-          {enableSendingInvites && (
-            <Button
-              className="mt-4 w-full text-cyan-500"
-              variant="outline"
-              disabled={!isEmail.success}
-              onClick={() => onAddEmailClick(true)}
-            >
-              <SendIcon className="mr-2 h-4 w-4" />
-              {isEmail.success
-                ? t('group_details.no_members.add_members_details.send_invite')
-                : t('errors.valid_email')}
-            </Button>
-          )}
           <Button
             className="mt-4 w-full text-cyan-500"
             variant="outline"

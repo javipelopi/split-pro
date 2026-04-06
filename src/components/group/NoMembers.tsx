@@ -9,13 +9,12 @@ import AddMembers from './AddMembers';
 
 interface NoMembersProps {
   group: Group & { groupUsers: GroupUser[] };
-  enableSendingInvites: boolean;
 }
 
-const NoMembers: React.FC<NoMembersProps> = ({ group, enableSendingInvites }) => {
+const NoMembers: React.FC<NoMembersProps> = ({ group }) => {
   const { t } = useTranslation();
   const [isCopied, setIsCopied] = useState(false);
-  const isArchived = !!group.archivedAt;
+  const isArchived = Boolean(group.archivedAt);
 
   async function copyToClipboard() {
     const inviteLink = `${window.location.origin}/join-group?groupId=${group.publicId}`;
@@ -30,7 +29,7 @@ const NoMembers: React.FC<NoMembersProps> = ({ group, enableSendingInvites }) =>
     <div className="flex h-full flex-col items-center justify-center gap-4">
       <p className="mb-4 text-center text-gray-500">{t('group_details.no_members.no_members')}</p>
 
-      <AddMembers group={group} enableSendingInvites={enableSendingInvites}>
+      <AddMembers group={group}>
         <Button className="w-[200px]" disabled={isArchived}>
           <UserPlus className="text-primary-foreground" /> {t('group_details.add_members')}
         </Button>

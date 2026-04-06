@@ -40,16 +40,13 @@ import { SimpleConfirmationDialog } from '~/components/SimpleConfirmationDialog'
 import { Switch } from '~/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { UpdateName } from '~/components/Account/UpdateName';
-import { env } from '~/env';
 import { useTranslationWithUtils } from '~/hooks/useTranslationWithUtils';
 import { db } from '~/server/db';
 import { type NextPageWithUser } from '~/types';
 import { api } from '~/utils/api';
 import { customServerSideTranslations } from '~/utils/i18n/server';
 
-const BalancePage: NextPageWithUser<{
-  enableSendingInvites: boolean;
-}> = ({ user, enableSendingInvites }) => {
+const BalancePage: NextPageWithUser = ({ user }) => {
   const { displayName, toUIDate, t, getCurrencyHelpersCached } = useTranslationWithUtils();
   const router = useRouter();
   const groupId = parseInt(router.query.groupId as string);
@@ -484,7 +481,7 @@ const BalancePage: NextPageWithUser<{
       >
         {1 === groupDetailQuery.data?.groupUsers.length && !expensesQuery.data?.length ? (
           <div className="h-[85vh]">
-            <NoMembers group={groupDetailQuery.data} enableSendingInvites={enableSendingInvites} />
+            <NoMembers group={groupDetailQuery.data} />
           </div>
         ) : (
           <div className="transition-discrete starting:opacity-0">
@@ -522,7 +519,7 @@ const BalancePage: NextPageWithUser<{
                 </Button>
               </SettlementModal>
 
-              <AddMembers group={groupDetailQuery.data} enableSendingInvites={enableSendingInvites}>
+              <AddMembers group={groupDetailQuery.data}>
                 <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
                   <UserPlus className="size-4 text-gray-400" /> {t('group_details.add_members')}
                 </Button>
@@ -597,7 +594,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   return {
     props: {
       ...(await customServerSideTranslations(context.locale, ['common', 'currencies'])),
-      enableSendingInvites: env.ENABLE_SENDING_INVITES,
     },
   };
 };

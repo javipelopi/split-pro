@@ -171,10 +171,7 @@
       "pick_a_date": "Válassz egy dátumot",
       "select_user_or_group": {
         "add_to_split_pro": "Hozzáadás a SplitPro-hoz",
-        "note": "Megjegyzés: a meghívó küldése jelenleg le van tiltva a spam miatt",
-        "only_one_group_time": "Egyszerre csak egy csoportod lehet",
-        "send_invite": "Meghívó küldése felhasználónak",
-        "warning": "Figyelmeztetés: Ne használd a „meghívó küldése” funkciót, ha érvénytelen az e-mail cím. Helyette használd a „hozzáadás a SplitPro-hoz” funkciót. Fiókod blokkolásra kerül, ha ezt a funkciót nem rendeltetésszerűen használod"
+        "only_one_group_time": "Egyszerre csak egy csoportod lehet"
       },
       "split_type_section": {
         "split_equally": "egyenlően elosztva",
@@ -297,11 +294,8 @@
       "add_members": "Tagok hozzáadása",
       "add_members_details": {
         "add_to_split_pro": "Hozzáadás a SplitPro-hoz",
-        "note": "Megjegyzés: az e-mail meghívók küldése le van tiltva",
         "placeholder": "Írd be a neved vagy az e-mail címed",
-        "send_invite": "Meghívó küldése felhasználónak",
-        "title": "Tagok hozzáadása",
-        "warning": "Figyelmeztetés: Ne használd a „meghívó küldése” funkciót, ha érvénytelen az e-mail cím. Helyette használd a „hozzáadás a SplitPro-hoz” funkciót. Fiókod blokkolásra kerül, ha ezt a funkciót nem rendeltetésszerűen használod"
+        "title": "Tagok hozzáadása"
       },
       "invite_link": "Meghívólink",
       "no_members": "Még nincsenek tagok a csoportban."

@@ -29,10 +29,9 @@ import { currencyConversion, getRatePrecision } from '~/utils/numbers';
 import { CURRENCY_CONVERSION_ICON } from '../ui/categoryIcons';
 
 export const AddOrEditExpensePage: React.FC<{
-  enableSendingInvites: boolean;
   expenseId?: string;
   bankConnectionEnabled: boolean;
-}> = ({ enableSendingInvites, expenseId, bankConnectionEnabled }) => {
+}> = ({ expenseId, bankConnectionEnabled }) => {
   const showFriends = useAddExpenseStore((s) => s.showFriends);
   const amount = useAddExpenseStore((s) => s.amount);
   const isNegative = useAddExpenseStore((s) => s.isNegative);
@@ -302,7 +301,7 @@ export const AddOrEditExpensePage: React.FC<{
       </div>
       <UserInput isEditing={Boolean(expenseId)} />
       {showFriends || (1 === participants.length && !group) ? (
-        <SelectUserOrGroup enableSendingInvites={enableSendingInvites} />
+        <SelectUserOrGroup />
       ) : (
         <>
           <div className="mt-4 flex gap-2 sm:mt-10">
