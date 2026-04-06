@@ -2,8 +2,8 @@ import { TRPCError } from '@trpc/server';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
-import { simplifyDebts } from '~/lib/simplify';
 import { createTRPCRouter, groupProcedure, protectedProcedure } from '~/server/api/trpc';
+import { applyGroupSimplify } from '~/server/api/services/balanceService';
 import { sendGroupSimplifyDebtsToggleNotification } from '~/server/api/services/notificationService';
 import { SplitType } from '@prisma/client';
 
@@ -138,7 +138,7 @@ export const groupRouter = createTRPCRouter({
     });
 
     if (group?.simplifyDebts) {
-      group.groupBalances = simplifyDebts(group.groupBalances);
+      group.groupBalances = applyGroupSimplify(group.groupBalances);
     }
 
     return group;
@@ -255,7 +255,9 @@ export const groupRouter = createTRPCRouter({
         where: { groupId: input.groupId },
       });
 
-      const finalGroupBalances = group.simplifyDebts ? simplifyDebts(groupBalances) : groupBalances;
+      const finalGroupBalances = group.simplifyDebts
+        ? applyGroupSimplify(groupBalances)
+        : groupBalances;
 
       if (finalGroupBalances.some((b) => b.userId === userId && 0n !== b.amount)) {
         throw new TRPCError({
@@ -350,7 +352,7 @@ export const groupRouter = createTRPCRouter({
       // Only check balances when archiving (not when unarchiving)
       if (isArchiving) {
         if (group?.simplifyDebts) {
-          group.groupBalances = simplifyDebts(group.groupBalances);
+          group.groupBalances = applyGroupSimplify(group.groupBalances);
         }
 
         const balanceWithNonZero = group.groupBalances.find((b) => 0n !== b.amount);
@@ -442,7 +444,7 @@ export const groupRouter = createTRPCRouter({
       }
 
       if (group?.simplifyDebts) {
-        group.groupBalances = simplifyDebts(group.groupBalances);
+        group.groupBalances = applyGroupSimplify(group.groupBalances);
       }
 
       const balanceWithNonZero = group?.groupBalances.find((b) => 0n !== b.amount);
