@@ -177,23 +177,22 @@ const MultiPayerRow: React.FC<{
   );
 
   return (
-    <div className="flex items-center justify-between gap-2 px-2">
-      <div className="flex cursor-pointer items-center gap-1" onClick={onToggle}>
+    <div className="flex w-full items-center gap-2 px-2">
+      <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-1" onClick={onToggle}>
         {isPayer ? (
-          <Check className="h-5 w-5 text-cyan-500" />
+          <Check className="h-5 w-5 shrink-0 text-cyan-500" />
         ) : (
-          <div className="h-5 w-5 rounded border border-gray-300" />
+          <div className="h-5 w-5 shrink-0 rounded border border-gray-300" />
         )}
         <EntityAvatar entity={participant} size={28} />
-        <p className="ml-2 text-sm">{displayName(participant, currentUser?.id)}</p>
+        <p className="ml-2 truncate text-sm">{displayName(participant, currentUser?.id)}</p>
       </div>
       {isPayer && (
         <CurrencyInput
           strValue={amountStr}
           currency={currency}
-          className="w-28 text-right text-sm"
+          className="w-28 shrink-0 text-right text-sm"
           onValueChange={onValueChange}
-          disableCalculator
         />
       )}
     </div>
