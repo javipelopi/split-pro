@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { simplifyDebts } from '~/lib/simplify';
 import { createTRPCRouter, groupProcedure, protectedProcedure } from '~/server/api/trpc';
+import { getProcessedBalances } from '~/server/api/services/balanceService';
 import { sendGroupSimplifyDebtsToggleNotification } from '~/server/api/services/notificationService';
 import { SplitType } from '@prisma/client';
 
@@ -138,7 +139,8 @@ export const groupRouter = createTRPCRouter({
     });
 
     if (group?.simplifyDebts) {
-      group.groupBalances = simplifyDebts(group.groupBalances);
+      const processed = await getProcessedBalances({ groupId: input.groupId });
+      group.groupBalances = processed.map(({ group: _group, ...balance }) => balance);
     }
 
     return group;

@@ -1,7 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { simplifyDebts } from '~/lib/simplify';
 import { createTRPCRouter, groupProcedure, protectedProcedure } from '~/server/api/trpc';
 import { db } from '~/server/db';
 import { BigMath, currencyConversion } from '~/utils/numbers';
@@ -14,6 +13,7 @@ import {
   getCurrencyRateSchema,
 } from '~/types/expense.types';
 import { createExpense, deleteExpense, editExpense } from '../services/splitService';
+import { getProcessedBalances } from '../services/balanceService';
 import { currencyRateProvider } from '../services/currencyRateService';
 import { type CurrencyCode, isCurrencyCode } from '~/lib/currency';
 import { SplitType } from '@prisma/client';
@@ -43,42 +43,13 @@ export const expenseRouter = createTRPCRouter({
   }),
 
   getBalances: protectedProcedure.query(async ({ ctx }) => {
-    const rawBalances = await db.balanceView.findMany({
-      where: {
-        userId: ctx.session.user.id,
-        friendId: { notIn: ctx.session.user.hiddenFriendIds },
-      },
-      include: {
-        group: {
-          select: {
-            simplifyDebts: true,
-          },
-        },
-      },
+    const processedBalances = await getProcessedBalances({
+      userId: ctx.session.user.id,
+      hiddenFriendIds: ctx.session.user.hiddenFriendIds,
     });
 
-    const processedBalances = await Promise.all(
-      rawBalances.map(async ({ friendId, currency, amount, groupId, group }) => {
-        if (!group?.simplifyDebts || null === groupId) {
-          return { friendId, currency, amount };
-        }
-
-        const allGroupBalances = await db.balanceView.findMany({
-          where: { groupId, currency },
-        });
-
-        const simplified = simplifyDebts(allGroupBalances);
-        const simplifiedBalance = simplified.find(
-          (b) =>
-            b.userId === ctx.session.user.id && b.friendId === friendId && b.currency === currency,
-        );
-
-        return { friendId, currency, amount: simplifiedBalance?.amount ?? 0n };
-      }),
-    );
-
     // Group by friendId and fetch user details
-    const friendIds = [...new Set([...processedBalances].map((b) => b.friendId))];
+    const friendIds = [...new Set(processedBalances.map((b) => b.friendId))];
     const userMap = await getUserMap(friendIds);
 
     // Aggregate by (friendId, currency) since same pair can appear in multiple groups
