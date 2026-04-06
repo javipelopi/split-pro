@@ -194,192 +194,213 @@ const BalancePage: NextPageWithUser<{
               trigger={<Info className="h-6 w-6" />}
               className="h-[85vh]"
             >
-              <>
-                <div className="flex items-center justify-between">
-                  <div className="text-primary text-xl font-semibold">
-                    {groupDetailQuery.data?.name ?? ''}
-                  </div>
-                  {isAdmin && (
-                    <UpdateName
-                      className="mr-2 size-5"
-                      defaultName={groupDetailQuery.data?.name ?? ''}
-                      onNameSubmit={async (values) => {
-                        try {
-                          await updateGroupDetailsMutation.mutateAsync({
-                            groupId,
-                            name: values.name,
-                          });
-                          toast.success(t('ui.messages.group_name_updated'), { duration: 1500 });
-                          await groupDetailQuery.refetch();
-                        } catch (error) {
-                          toast.error(t('errors.group_name_update_failed'));
-                          console.error(error);
-                        }
-                      }}
-                    />
-                  )}
-                </div>
+              <Tabs defaultValue="info" className="flex h-full flex-col">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="info">
+                    {t('group_details.group_info.tab_info', 'Info')}
+                  </TabsTrigger>
+                  <TabsTrigger value="members">{t('group_details.group_info.members')}</TabsTrigger>
+                  <TabsTrigger value="actions">{t('group_details.group_info.actions')}</TabsTrigger>
+                </TabsList>
 
-                {isAdmin && (
-                  <div className="mt-4 flex items-center justify-between">
-                    <p className="text-sm text-gray-400">
-                      {t('group_details.group_info.default_currency', 'Default currency')}
-                    </p>
-                    <CurrencyPicker
-                      currentCurrency={parseCurrencyCode(
-                        groupDetailQuery.data?.defaultCurrency ?? 'USD',
-                      )}
-                      onCurrencyPick={async (currency) => {
-                        try {
-                          await updateGroupDetailsMutation.mutateAsync({
-                            groupId,
-                            name: groupDetailQuery.data?.name ?? '',
-                            defaultCurrency: currency,
-                          });
-                          toast.success(t('ui.messages.currency_updated', 'Currency updated'), {
-                            duration: 1500,
-                          });
-                          await groupDetailQuery.refetch();
-                        } catch {
-                          toast.error(t('errors.setting_update_failed'));
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-
-                <p className="mt-5 font-semibold">{t('group_details.group_info.members')}</p>
-                <div className="mt-2 flex flex-col gap-2">
-                  {groupDetailQuery.data?.groupUsers.map((groupUser) => (
-                    <div key={groupUser.userId} className="flex items-center justify-between">
-                      <div className={clsx('flex items-center gap-2 rounded-md py-1.5')}>
-                        <EntityAvatar entity={groupUser.user} />
-                        <p>{displayName(groupUser.user)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <Scale className="h-3.5 w-3.5 text-gray-400" />
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            defaultValue={groupUser.weight}
-                            className="h-7 w-14 text-center text-sm"
-                            disabled={isArchived}
-                            onBlur={(e) => {
-                              const weight = parseInt(e.target.value, 10);
-                              if (weight >= 1 && weight !== groupUser.weight) {
-                                updateMemberWeightMutation.mutate(
-                                  { groupId, userId: groupUser.userId, weight },
-                                  {
-                                    onSuccess: () => {
-                                      toast.success(t('ui.messages.weight_updated'), {
-                                        duration: 1500,
-                                      });
-                                      void groupDetailQuery.refetch();
-                                    },
-                                    onError: () => {
-                                      toast.error(t('errors.setting_update_failed'));
-                                      e.target.value = String(groupUser.weight);
-                                    },
-                                  },
-                                );
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="flex w-14 justify-center">
-                          {groupUser.userId === groupDetailQuery.data?.userId ? (
-                            <p className="text-sm text-gray-400">{t('actors.owner')}</p>
-                          ) : (
-                            isAdmin &&
-                            (() => {
-                              const canLeave = !groupDetailQuery.data?.groupBalances.find(
-                                (b) => 0n !== b.amount && b.userId === groupUser.userId,
-                              );
-
-                              return (
-                                <SimpleConfirmationDialog
-                                  title={
-                                    canLeave
-                                      ? t('group_details.group_info.remove_member_details.title')
-                                      : ''
-                                  }
-                                  description={
-                                    canLeave
-                                      ? t(
-                                          'group_details.group_info.remove_member_details.can_remove',
-                                        )
-                                      : t(
-                                          'group_details.group_info.remove_member_details.cant_remove',
-                                        )
-                                  }
-                                  hasPermission={canLeave}
-                                  onConfirm={() => onGroupLeave(groupUser.userId)}
-                                  loading={leaveGroupMutation.isPending}
-                                  variant="destructive"
-                                >
-                                  <Button
-                                    variant="ghost"
-                                    className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
-                                  >
-                                    <X className="mr-2 h-5 w-5" />
-                                  </Button>
-                                </SimpleConfirmationDialog>
-                              );
-                            })()
-                          )}
-                        </div>
-                      </div>
+                <TabsContent value="info" className="flex-1 overflow-y-auto">
+                  <div className="flex items-center justify-between">
+                    <div className="text-primary text-xl font-semibold">
+                      {groupDetailQuery.data?.name ?? ''}
                     </div>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  {t('group_details.group_info.weight_hint')}
-                </p>
-              </>
-              {groupDetailQuery.data?.createdAt && (
-                <div className="mt-8">
-                  <p className="font-semibold">{t('group_details.group_info.group_created')}</p>
-                  <p>{toUIDate(groupDetailQuery.data.createdAt, { year: true })}</p>
-                </div>
-              )}
-              <div className="mt-8">
-                <p className="font-semibold">{t('group_details.group_info.actions')}</p>
-                <div className="child:h-7 mt-2 flex flex-col">
-                  <Label className="flex cursor-pointer items-center justify-between">
-                    <p className="flex items-center">
-                      <Merge className="mr-2 size-4" />{' '}
-                      {t('group_details.group_info.simplify_debts')}
-                    </p>
-                    <Switch
-                      id="simplify-debts"
-                      disabled={isArchived}
-                      checked={groupDetailQuery.data?.simplifyDebts ?? false}
-                      onCheckedChange={() => {
-                        toggleSimplifyDebtsMutation.mutate(
-                          { groupId },
-                          {
-                            onSuccess: () => {
-                              void groupDetailQuery.refetch();
+                    {isAdmin && (
+                      <UpdateName
+                        className="mr-2 size-5"
+                        defaultName={groupDetailQuery.data?.name ?? ''}
+                        onNameSubmit={async (values) => {
+                          try {
+                            await updateGroupDetailsMutation.mutateAsync({
+                              groupId,
+                              name: values.name,
+                            });
+                            toast.success(t('ui.messages.group_name_updated'), { duration: 1500 });
+                            await groupDetailQuery.refetch();
+                          } catch (error) {
+                            toast.error(t('errors.group_name_update_failed'));
+                            console.error(error);
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {isAdmin && (
+                    <div className="mt-4 flex items-center justify-between">
+                      <p className="text-sm text-gray-400">
+                        {t('group_details.group_info.default_currency', 'Default currency')}
+                      </p>
+                      <CurrencyPicker
+                        currentCurrency={parseCurrencyCode(
+                          groupDetailQuery.data?.defaultCurrency ?? 'USD',
+                        )}
+                        onCurrencyPick={async (currency) => {
+                          try {
+                            await updateGroupDetailsMutation.mutateAsync({
+                              groupId,
+                              name: groupDetailQuery.data?.name ?? '',
+                              defaultCurrency: currency,
+                            });
+                            toast.success(t('ui.messages.currency_updated', 'Currency updated'), {
+                              duration: 1500,
+                            });
+                            await groupDetailQuery.refetch();
+                          } catch {
+                            toast.error(t('errors.setting_update_failed'));
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {groupDetailQuery.data?.createdAt && (
+                    <div className="mt-6">
+                      <p className="text-sm text-gray-400">
+                        {t('group_details.group_info.group_created')}
+                      </p>
+                      <p>{toUIDate(groupDetailQuery.data.createdAt, { year: true })}</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="members" className="flex-1 overflow-y-auto">
+                  <p className="font-semibold">{t('group_details.group_info.members')}</p>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {groupDetailQuery.data?.groupUsers.map((groupUser) => (
+                      <div key={groupUser.userId} className="flex items-center justify-between">
+                        <div className={clsx('flex items-center gap-2 rounded-md py-1.5')}>
+                          <EntityAvatar entity={groupUser.user} />
+                          <p>{displayName(groupUser.user)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Scale className="h-3.5 w-3.5 text-gray-400" />
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              defaultValue={groupUser.weight}
+                              className="h-7 w-14 text-center text-sm"
+                              disabled={isArchived}
+                              onBlur={(e) => {
+                                const weight = parseInt(e.target.value, 10);
+                                if (weight >= 1 && weight !== groupUser.weight) {
+                                  updateMemberWeightMutation.mutate(
+                                    { groupId, userId: groupUser.userId, weight },
+                                    {
+                                      onSuccess: () => {
+                                        toast.success(t('ui.messages.weight_updated'), {
+                                          duration: 1500,
+                                        });
+                                        void groupDetailQuery.refetch();
+                                      },
+                                      onError: () => {
+                                        toast.error(t('errors.setting_update_failed'));
+                                        e.target.value = String(groupUser.weight);
+                                      },
+                                    },
+                                  );
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="flex w-14 justify-center">
+                            {groupUser.userId === groupDetailQuery.data?.userId ? (
+                              <p className="text-sm text-gray-400">{t('actors.owner')}</p>
+                            ) : (
+                              isAdmin &&
+                              (() => {
+                                const canLeave = !groupDetailQuery.data?.groupBalances.find(
+                                  (b) => 0n !== b.amount && b.userId === groupUser.userId,
+                                );
+
+                                return (
+                                  <SimpleConfirmationDialog
+                                    title={
+                                      canLeave
+                                        ? t('group_details.group_info.remove_member_details.title')
+                                        : ''
+                                    }
+                                    description={
+                                      canLeave
+                                        ? t(
+                                            'group_details.group_info.remove_member_details.can_remove',
+                                          )
+                                        : t(
+                                            'group_details.group_info.remove_member_details.cant_remove',
+                                          )
+                                    }
+                                    hasPermission={canLeave}
+                                    onConfirm={() => onGroupLeave(groupUser.userId)}
+                                    loading={leaveGroupMutation.isPending}
+                                    variant="destructive"
+                                  >
+                                    <Button
+                                      variant="ghost"
+                                      className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                                    >
+                                      <X className="mr-2 h-5 w-5" />
+                                    </Button>
+                                  </SimpleConfirmationDialog>
+                                );
+                              })()
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    {t('group_details.group_info.weight_hint')}
+                  </p>
+                </TabsContent>
+
+                <TabsContent value="actions" className="flex flex-1 flex-col overflow-y-auto">
+                  <div className="flex flex-col gap-4">
+                    <Label className="flex cursor-pointer items-center justify-between">
+                      <p className="flex items-center">
+                        <Merge className="mr-2 size-4" />{' '}
+                        {t('group_details.group_info.simplify_debts')}
+                      </p>
+                      <Switch
+                        id="simplify-debts"
+                        disabled={isArchived}
+                        checked={groupDetailQuery.data?.simplifyDebts ?? false}
+                        onCheckedChange={() => {
+                          toggleSimplifyDebtsMutation.mutate(
+                            { groupId },
+                            {
+                              onSuccess: () => {
+                                void groupDetailQuery.refetch();
+                              },
+                              onError: () => {
+                                toast.error(t('errors.setting_update_failed'));
+                              },
                             },
-                            onError: () => {
-                              toast.error(t('errors.setting_update_failed'));
-                            },
-                          },
-                        );
-                      }}
-                    />
-                  </Label>
-                  <Label className="flex cursor-pointer items-center justify-between">
-                    <p className="flex items-center">
-                      <Archive className="mr-2 size-4" />{' '}
-                      {t('group_details.group_info.archive_group')}
-                    </p>
-                    <Switch
-                      id="archive-group"
-                      checked={groupDetailQuery.data?.archivedAt !== null}
-                      onCheckedChange={() => {
+                          );
+                        }}
+                      />
+                    </Label>
+                    <Link href={`/import-csv?groupId=${groupId}`}>
+                      <Button
+                        variant="ghost"
+                        className="h-auto w-full justify-start p-0 text-left"
+                        disabled={isArchived}
+                      >
+                        <FileSpreadsheet className="mr-2 size-4" /> {t('import_csv.title')}
+                      </Button>
+                    </Link>
+                  </div>
+
+                  <div className="mt-auto flex flex-col gap-2 pt-8">
+                    <button
+                      type="button"
+                      className="text-left text-sm text-red-500 hover:opacity-80"
+                      onClick={() => {
                         toggleArchiveMutation.mutate(
                           { groupId },
                           {
@@ -392,68 +413,61 @@ const BalancePage: NextPageWithUser<{
                           },
                         );
                       }}
-                    />
-                  </Label>
-                  <Link href={`/import-csv?groupId=${groupId}`}>
-                    <Button
-                      variant="ghost"
-                      className="justify-start p-0 text-left"
-                      disabled={isArchived}
                     >
-                      <FileSpreadsheet className="mr-2 size-4" /> {t('import_csv.title')}
-                    </Button>
-                  </Link>
-                  {isAdmin ? (
-                    <SimpleConfirmationDialog
-                      title={
-                        canDeleteOrArchive
-                          ? t('group_details.group_info.delete_group_details.title')
-                          : ''
-                      }
-                      description={
-                        canDeleteOrArchive
-                          ? t('group_details.group_info.delete_group_details.can_delete')
-                          : t('group_details.group_info.delete_group_details.cant_delete')
-                      }
-                      hasPermission={canDeleteOrArchive}
-                      onConfirm={onGroupDelete}
-                      loading={deleteGroupMutation.isPending}
-                      variant="destructive"
-                    >
-                      <Button
-                        variant="ghost"
-                        className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                      {groupDetailQuery.data?.archivedAt !== null
+                        ? t('group_details.group_info.unarchive_group', 'Unarchive group')
+                        : t('group_details.group_info.archive_group')}
+                    </button>
+                    {isAdmin ? (
+                      <SimpleConfirmationDialog
+                        title={
+                          canDeleteOrArchive
+                            ? t('group_details.group_info.delete_group_details.title')
+                            : ''
+                        }
+                        description={
+                          canDeleteOrArchive
+                            ? t('group_details.group_info.delete_group_details.can_delete')
+                            : t('group_details.group_info.delete_group_details.cant_delete')
+                        }
+                        hasPermission={canDeleteOrArchive}
+                        onConfirm={onGroupDelete}
+                        loading={deleteGroupMutation.isPending}
+                        variant="destructive"
                       >
-                        <Trash2 className="mr-2 size-4" />{' '}
-                        {t('group_details.group_info.delete_group')}
-                      </Button>
-                    </SimpleConfirmationDialog>
-                  ) : (
-                    <SimpleConfirmationDialog
-                      title={
-                        canLeave ? t('group_details.group_info.leave_group_details.title') : ''
-                      }
-                      description={
-                        canLeave
-                          ? t('group_details.group_info.leave_group_details.can_leave')
-                          : t('group_details.group_info.leave_group_details.cant_leave')
-                      }
-                      hasPermission={canLeave}
-                      onConfirm={onGroupLeave}
-                      loading={leaveGroupMutation.isPending}
-                      variant="destructive"
-                    >
-                      <Button
-                        variant="ghost"
-                        className="justify-start p-0 text-left text-red-500 hover:text-red-500 hover:opacity-90"
+                        <button
+                          type="button"
+                          className="text-left text-sm text-red-500 hover:opacity-80"
+                        >
+                          {t('group_details.group_info.delete_group')}
+                        </button>
+                      </SimpleConfirmationDialog>
+                    ) : (
+                      <SimpleConfirmationDialog
+                        title={
+                          canLeave ? t('group_details.group_info.leave_group_details.title') : ''
+                        }
+                        description={
+                          canLeave
+                            ? t('group_details.group_info.leave_group_details.can_leave')
+                            : t('group_details.group_info.leave_group_details.cant_leave')
+                        }
+                        hasPermission={canLeave}
+                        onConfirm={onGroupLeave}
+                        loading={leaveGroupMutation.isPending}
+                        variant="destructive"
                       >
-                        <DoorOpen className="mr-2 h-5 w-5" />{' '}
-                        {t('group_details.group_info.leave_group')}
-                      </Button>
-                    </SimpleConfirmationDialog>
-                  )}
-                </div>
-              </div>
+                        <button
+                          type="button"
+                          className="text-left text-sm text-red-500 hover:opacity-80"
+                        >
+                          {t('group_details.group_info.leave_group')}
+                        </button>
+                      </SimpleConfirmationDialog>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </AppDrawer>
           </div>
         }
