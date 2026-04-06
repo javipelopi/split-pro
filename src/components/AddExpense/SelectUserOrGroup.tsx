@@ -7,6 +7,7 @@ import Image from 'next/image';
 import React, { useCallback } from 'react';
 import { z } from 'zod';
 
+import { parseCurrencyCode } from '~/lib/currency';
 import { useAddExpenseStore } from '~/store/addStore';
 import { api } from '~/utils/api';
 
@@ -20,8 +21,14 @@ export const SelectUserOrGroup: React.FC<{
   const nameOrEmail = useAddExpenseStore((s) => s.nameOrEmail);
   const participants = useAddExpenseStore((s) => s.participants);
   const group = useAddExpenseStore((s) => s.group);
-  const { addOrUpdateParticipant, removeParticipant, setNameOrEmail, setGroup, setParticipants } =
-    useAddExpenseStore((s) => s.actions);
+  const {
+    addOrUpdateParticipant,
+    removeParticipant,
+    setCurrency,
+    setNameOrEmail,
+    setGroup,
+    setParticipants,
+  } = useAddExpenseStore((s) => s.actions);
 
   const friendsQuery = api.user.getFriends.useQuery();
   const groupsQuery = api.group.getAllGroups.useQuery();
@@ -78,6 +85,7 @@ export const SelectUserOrGroup: React.FC<{
   const onGroupSelect = useCallback(
     (group: Group & { groupUsers: (GroupUser & { user: User })[] }) => {
       setGroup(group);
+      setCurrency(parseCurrencyCode(group.defaultCurrency));
       const { currentUser } = useAddExpenseStore.getState();
       if (currentUser) {
         const weightMap = Object.fromEntries(
@@ -94,7 +102,7 @@ export const SelectUserOrGroup: React.FC<{
       }
       setNameOrEmail('');
     },
-    [setGroup, setParticipants, setNameOrEmail],
+    [setGroup, setCurrency, setParticipants, setNameOrEmail],
   );
 
   const handleAddEmailClickFalse = useCallback(() => onAddEmailClick(false), [onAddEmailClick]);
