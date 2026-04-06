@@ -513,7 +513,18 @@ export function calculateSplitShareBasedOnAmount(
 
       break;
 
-    case SplitType.ADJUSTMENT:
+    case SplitType.ADJUSTMENT: {
+      // For ADJUSTMENT, treat the payer's p.amount as the negative of extra paid
+      // Beyond their share. This preserves the legacy semantics where
+      // Share_for_payer = amount - |p.amount| (matching the old two-formula logic).
+      const getAdjustmentShare = (p: Participant): bigint => {
+        const paidAmount = payerMap.get(p.id) ?? 0n;
+        if (paidAmount > 0n) {
+          return amount - BigMath.abs(p.amount ?? 0n);
+        }
+        return BigMath.abs(p.amount ?? 0n);
+      };
+
       const shareAmounts = participants
         .filter(({ amount }) => 0n !== amount)
         .map((p) => getShare(p));
@@ -521,9 +532,10 @@ export function calculateSplitShareBasedOnAmount(
       const minAmount = shareAmounts.length > 0 ? BigMath.min(...shareAmounts) : 0n;
 
       participants.forEach((p) => {
-        splitShares[p.id]![splitType] = getShare(p) - minAmount;
+        splitShares[p.id]![splitType] = getAdjustmentShare(p) - minAmount;
       });
 
       break;
+    }
   }
 }
