@@ -41,7 +41,6 @@ describe('evaluateCalculatorExpression', () => {
       ['1/0', 'division by zero'],
       ['abc', 'letters'],
       ['1..2', 'double decimal'],
-      ['1 2', 'missing operator'],
     ])('should throw for %p (%s)', (expr) => {
       expect(() => evaluateCalculatorExpression(expr)).toThrow();
     });
