@@ -42,8 +42,16 @@ COPY --from=base /app/.next/static ./.next/static
 COPY --from=base /app/public ./public
 COPY --from=base /app/prisma ./prisma
 
-# Install prisma CLI for running migrations at startup
-RUN npm install -g prisma
+# Install prisma CLI for running migrations at startup.
+# Pin to the version in pnpm-lock.yaml (devDependencies.prisma) — the
+# unpinned `npm install -g prisma` pulls `latest`, and prisma >=7.x has a
+# SQL parser regression that fails on multi-statement plpgsql function
+# bodies with $$-quoted strings (error: "unterminated dollar-quoted
+# string"). The migration `20260406020000_add_expense_payer` hits this
+# because it redefines the `auto_unhide_friend` trigger with multiple
+# statements inside the function body. Keep this version in lock step
+# with pnpm-lock.yaml `prisma:` and rebuild whenever it bumps.
+RUN npm install -g prisma@6.19.1
 
 # set this so it throws error where starting server
 ENV SKIP_ENV_VALIDATION="false"
