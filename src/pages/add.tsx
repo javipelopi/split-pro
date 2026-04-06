@@ -1,3 +1,4 @@
+import { SplitType } from '@prisma/client';
 import { type GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -79,15 +80,35 @@ const AddPage: NextPageWithUser<{
     if (groupId && !groupQuery.isPending && groupQuery.data && currentUser) {
       setGroup(groupQuery.data);
 
+      // Set currency from group default
+      if (groupQuery.data.defaultCurrency) {
+        setCurrency(parseCurrencyCode(groupQuery.data.defaultCurrency));
+      }
+
       setParticipants([
         currentUser,
         ...groupQuery.data.groupUsers
           .map((gu) => gu.user)
           .filter((user) => user.id !== currentUser.id),
       ]);
+
+      // Pre-fill EQUAL split weights from group member weights
+      const { setSplitShare } = useAddExpenseStore.getState().actions;
+      for (const gu of groupQuery.data.groupUsers) {
+        setSplitShare(SplitType.EQUAL, gu.userId, BigInt(gu.weight ?? 1));
+      }
+
       useAddExpenseStore.setState({ showFriends: false });
     }
-  }, [groupId, groupQuery.isPending, groupQuery.data, currentUser, setGroup, setParticipants]);
+  }, [
+    groupId,
+    groupQuery.isPending,
+    groupQuery.data,
+    currentUser,
+    setGroup,
+    setParticipants,
+    setCurrency,
+  ]);
 
   useEffect(() => {
     if (friendId && currentUser && friendQuery.data) {

@@ -109,11 +109,16 @@ const MultiPayerSelection: React.FC<{
 
   const payerTotal = payers.reduce((sum, p) => sum + p.amount, 0n);
   const remaining = amount - payerTotal;
+  const overpaid = remaining < 0n;
 
   return (
     <div className="flex flex-col gap-4">
       <p className={cn('text-center text-sm', remaining === 0n ? 'text-gray-400' : 'text-red-500')}>
-        {remaining === 0n ? `${toUIString(amount)} covered` : `${toUIString(remaining)} remaining`}
+        {remaining === 0n
+          ? `${toUIString(amount)} covered`
+          : overpaid
+            ? `${toUIString(-remaining)} overpaid`
+            : `${toUIString(remaining)} remaining`}
       </p>
       {participants.map((participant) => {
         const payer = payers.find((py) => py.user.id === participant.id);
