@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { ExpenseList } from '~/components/Expense/ExpenseList';
 import { DeleteFriend } from '~/components/Friend/DeleteFriend';
 import { Export } from '~/components/Friend/Export';
-import { SettleUp } from '~/components/Friend/Settleup';
+import { SettlementModal } from '~/components/settlement/SettlementModal';
 import MainLayout from '~/components/Layout/MainLayout';
 import { EntityAvatar } from '~/components/ui/avatar';
 import { Button } from '~/components/ui/button';
@@ -26,16 +26,16 @@ const FriendPage: NextPageWithUser = ({ user }) => {
 
   const friendQuery = api.user.getFriend.useQuery(
     { friendId: _friendId },
-    { enabled: !!_friendId },
+    { enabled: Boolean(_friendId) },
   );
 
   const expenses = api.expense.getExpensesWithFriend.useQuery(
     { friendId: _friendId },
-    { enabled: !!_friendId },
+    { enabled: Boolean(_friendId) },
   );
   const balances = api.user.getBalancesWithFriend.useQuery(
     { friendId: _friendId },
-    { enabled: !!_friendId },
+    { enabled: Boolean(_friendId) },
   );
 
   // Aggregate balances by currency for CumulatedBalances display
@@ -89,7 +89,7 @@ const FriendPage: NextPageWithUser = ({ user }) => {
           <div className="mb-28 transition-discrete starting:opacity-0">
             <CumulatedBalances entityId={friendQuery.data.id} balances={aggregatedBalances} />
             <div className="mt-6 mb-4 flex justify-center gap-2">
-              <SettleUp balances={balances.data} friend={friendQuery.data}>
+              <SettlementModal type="friend" balances={balances.data} friend={friendQuery.data}>
                 <Button
                   size="sm"
                   className="flex w-[150px] items-center gap-2 rounded-md border bg-cyan-500 px-3 text-sm font-normal text-black focus:bg-cyan-600 focus:ring-0 focus-visible:outline-hidden lg:w-[180px]"
@@ -97,7 +97,7 @@ const FriendPage: NextPageWithUser = ({ user }) => {
                 >
                   <HandCoins className="size-4" /> {t('actions.settle_up')}
                 </Button>
-              </SettleUp>
+              </SettlementModal>
               <Link href={`/add?friendId=${friendQuery.data.id}`}>
                 <Button size="sm" variant="secondary" responsiveIcon>
                   <PlusIcon className="size-4" /> {t('actions.add_expense')}

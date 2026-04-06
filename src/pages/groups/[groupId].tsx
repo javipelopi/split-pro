@@ -29,7 +29,7 @@ import { parseCurrencyCode } from '~/lib/currency';
 import AddMembers from '~/components/group/AddMembers';
 import GroupMyBalance from '~/components/group/GroupMyBalance';
 import NoMembers from '~/components/group/NoMembers';
-import { RecordTransfer } from '~/components/group/RecordTransfer';
+import { SettlementModal } from '~/components/settlement/SettlementModal';
 import MainLayout from '~/components/Layout/MainLayout';
 import { EntityAvatar } from '~/components/ui/avatar';
 import { Button } from '~/components/ui/button';
@@ -511,7 +511,8 @@ const BalancePage: NextPageWithUser<{
                 </Button>
               </Link>
 
-              <RecordTransfer
+              <SettlementModal
+                type="group"
                 groupId={groupId}
                 members={groupDetailQuery.data?.groupUsers.map((gu) => gu.user) ?? []}
                 defaultCurrency={groupDetailQuery.data?.defaultCurrency ?? 'USD'}
@@ -519,7 +520,7 @@ const BalancePage: NextPageWithUser<{
                 <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
                   <ArrowLeftRight className="size-4 text-gray-400" /> {t('actions.record_transfer')}
                 </Button>
-              </RecordTransfer>
+              </SettlementModal>
 
               <AddMembers group={groupDetailQuery.data} enableSendingInvites={enableSendingInvites}>
                 <Button size="sm" responsiveIcon variant="secondary" disabled={isArchived}>
