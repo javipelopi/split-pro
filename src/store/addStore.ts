@@ -4,10 +4,9 @@ import { create } from 'zustand';
 
 import { DEFAULT_CATEGORY } from '~/lib/category';
 import { type CurrencyCode, parseCurrencyCode } from '~/lib/currency';
+import { calculateForwardSplit, calculateInverseSplit } from '~/lib/splitCalculator';
 import type { TransactionAddInputModel } from '~/types';
-import { shuffleArray } from '~/utils/array';
 import { BigMath } from '~/utils/numbers';
-import { cyrb128, splitmix32 } from '~/utils/random';
 
 export type Participant = User & { amount?: bigint };
 export type SplitShares = Record<number, Record<SplitType, bigint | undefined>>;
@@ -357,115 +356,20 @@ export function calculateParticipantSplit(
     | 'isNegative'
   >,
 ) {
-  const { amount, participants, splitType, splitShares, paidBy, payers, expenseDate } = state;
-  let canSplitScreenClosed = true;
-  if (0n === amount) {
-    return { ...state, canSplitScreenClosed };
-  }
-
-  let updatedParticipants = participants;
-
-  const getSplitShare = (p: Participant) => splitShares[p.id]?.[splitType];
-
-  switch (splitType) {
-    case SplitType.EQUAL:
-      const getWeight = (p: Participant) => {
-        const share = getSplitShare(p);
-        if (undefined === share) {
-          return 1n;
-        }
-        return share;
-      };
-      const totalWeight = participants.reduce((acc, p) => acc + getWeight(p), 0n);
-      updatedParticipants = participants.map((p) => ({
-        ...p,
-        amount: 0n === getWeight(p) ? 0n : (amount * getWeight(p)) / totalWeight,
-      }));
-      canSplitScreenClosed = Boolean(
-        Object.values(splitShares).find((p) => 0n !== p[SplitType.EQUAL]),
-      );
-      break;
-    case SplitType.PERCENTAGE:
-      updatedParticipants = participants.map((p) => ({
-        ...p,
-        amount: ((getSplitShare(p) ?? 0n) * amount) / 10000n,
-      }));
-      canSplitScreenClosed =
-        0 === 100 - participants.reduce((acc, p) => acc + Number(getSplitShare(p) ?? 0n) / 100, 0);
-      break;
-    case SplitType.SHARE:
-      const totalShare = participants.reduce((acc, p) => acc + Number(getSplitShare(p) ?? 0n), 0);
-      canSplitScreenClosed = 0 < totalShare;
-      updatedParticipants = participants.map((p) => ({
-        ...p,
-        amount:
-          0n === (getSplitShare(p) ?? 0n)
-            ? 0n
-            : ((getSplitShare(p) ?? 0n) * amount) / BigInt(Math.round(totalShare)),
-      }));
-      break;
-    case SplitType.EXACT:
-      const totalSplitShare = participants.reduce((acc, p) => acc + (getSplitShare(p) ?? 0n), 0n);
-
-      canSplitScreenClosed = amount === totalSplitShare;
-
-      updatedParticipants = participants.map((p) => ({ ...p, amount: getSplitShare(p) }));
-
-      break;
-    case SplitType.ADJUSTMENT:
-      const totalAdjustment = participants.reduce((acc, p) => acc + (getSplitShare(p) ?? 0n), 0n);
-      if (totalAdjustment > amount) {
-        canSplitScreenClosed = false;
-      }
-      const remainingAmountShare = (amount - totalAdjustment) / BigInt(participants.length);
-      updatedParticipants = participants.map((p) => ({
-        ...p,
-        amount: remainingAmountShare + (getSplitShare(p) ?? 0n),
-      }));
-      break;
-  }
-
-  // Calculate net position: amountPaid - share for each participant
-  // With multi-payer, each participant's paid amount comes from the payers array
-  const payerMap = new Map<number, bigint>();
-  if (payers && payers.length > 0) {
-    for (const p of payers) {
-      payerMap.set(p.user.id, p.amount);
-    }
-  } else if (paidBy) {
-    payerMap.set(paidBy.id, amount);
-  }
-
-  updatedParticipants = updatedParticipants.map((p) => {
-    const paidAmount = payerMap.get(p.id) ?? 0n;
-    return { ...p, amount: -(p.amount ?? 0n) + paidAmount };
+  const result = calculateForwardSplit({
+    amount: state.amount,
+    participants: state.participants,
+    splitType: state.splitType,
+    splitShares: state.splitShares,
+    paidBy: state.paidBy,
+    payers: state.payers,
+    expenseDate: state.expenseDate,
   });
-
-  if (canSplitScreenClosed) {
-    let penniesLeft = updatedParticipants.reduce((acc, p) => acc + (p.amount ?? 0n), 0n);
-    const participantsToPick = updatedParticipants.filter((p) => p.amount);
-    const seed =
-      cyrb128(
-        `${participantsToPick
-          .map((p) => p.amount)
-          .toSorted((a, b) => Number((a ?? 0n) - (b ?? 0n)))
-          .join('-')}-${new Intl.DateTimeFormat('en').format(expenseDate)}`,
-      )[0] ?? 0;
-    const random = splitmix32(seed);
-
-    if (0 < participantsToPick.length) {
-      shuffleArray(participantsToPick, random);
-      let i = 0;
-      while (0n !== penniesLeft) {
-        const p = participantsToPick[i % participantsToPick.length]!;
-        p.amount! -= BigMath.sign(penniesLeft);
-        penniesLeft -= BigMath.sign(penniesLeft);
-        i++;
-      }
-    }
-  }
-
-  return { ...state, participants: updatedParticipants, canSplitScreenClosed };
+  return {
+    ...state,
+    participants: result.participants,
+    canSplitScreenClosed: result.canSplitScreenClosed,
+  };
 }
 
 export const initSplitShares = (): Record<SplitType, bigint | undefined> => {
@@ -484,82 +388,5 @@ export function calculateSplitShareBasedOnAmount(
   paidBy?: User,
   payers?: Payer[],
 ) {
-  // Build a map of how much each person paid
-  const payerMap = new Map<number, bigint>();
-  if (payers && payers.length > 0) {
-    for (const p of payers) {
-      payerMap.set(p.user.id, p.amount);
-    }
-  } else if (paidBy) {
-    payerMap.set(paidBy.id, amount);
-  }
-
-  const getShare = (p: Participant): bigint => {
-    const paidAmount = payerMap.get(p.id) ?? 0n;
-    return BigMath.abs((p.amount ?? 0n) - paidAmount);
-  };
-
-  switch (splitType) {
-    case SplitType.EQUAL:
-      participants.forEach((p) => {
-        const paidAmount = payerMap.get(p.id) ?? 0n;
-        splitShares[p.id]![splitType] =
-          paidAmount === p.amount && participants.length > 1 ? 0n : 1n;
-      });
-
-      break;
-
-    case SplitType.PERCENTAGE:
-      participants.forEach((p) => {
-        splitShares[p.id]![splitType] = 0n === amount ? 0n : (getShare(p) * 10000n) / amount;
-      });
-
-      break;
-
-    case SplitType.SHARE:
-      const amounts = participants
-        .filter(({ amount }) => Boolean(amount))
-        .map((p) => getShare(p))
-        .filter((s) => s !== 0n);
-
-      const gcdValue = amounts.length > 1 ? amounts.reduce((a, b) => BigMath.gcd(a, b)) : 1n;
-
-      participants.forEach((p) => {
-        splitShares[p.id]![splitType] = 0n === amount ? 0n : (getShare(p) * 100n) / gcdValue;
-      });
-
-      break;
-
-    case SplitType.EXACT:
-      participants.forEach((p) => {
-        splitShares[p.id]![splitType] = getShare(p);
-      });
-
-      break;
-
-    case SplitType.ADJUSTMENT: {
-      // For ADJUSTMENT, treat the payer's p.amount as the negative of extra paid
-      // Beyond their share. This preserves the legacy semantics where
-      // Share_for_payer = amount - |p.amount| (matching the old two-formula logic).
-      const getAdjustmentShare = (p: Participant): bigint => {
-        const paidAmount = payerMap.get(p.id) ?? 0n;
-        if (paidAmount > 0n) {
-          return amount - BigMath.abs(p.amount ?? 0n);
-        }
-        return BigMath.abs(p.amount ?? 0n);
-      };
-
-      const shareAmounts = participants
-        .filter(({ amount }) => 0n !== amount)
-        .map((p) => getShare(p));
-
-      const minAmount = shareAmounts.length > 0 ? BigMath.min(...shareAmounts) : 0n;
-
-      participants.forEach((p) => {
-        splitShares[p.id]![splitType] = getAdjustmentShare(p) - minAmount;
-      });
-
-      break;
-    }
-  }
+  calculateInverseSplit({ amount, participants, splitType, splitShares, paidBy, payers });
 }
