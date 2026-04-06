@@ -182,8 +182,12 @@ export const useAddExpenseStore = create<AddExpenseState>()((set) => ({
           const shares = initSplitShares();
           if (weightMap?.[p.id] !== undefined) {
             if (hasCustomWeights) {
-              shares[SplitType.SHARE] = weightMap[p.id]!;
+              // SHARE split stores values scaled ×100 (see SplitTypeSection fmtShareText
+              // And onChangeInput via toSafeBigInt). Raw weights like 1, 2 must be scaled
+              // Or they render as 0.01, 0.02.
+              shares[SplitType.SHARE] = weightMap[p.id]! * 100n;
             } else {
+              // EQUAL uses 1n/0n as an included-or-not flag; leave unscaled.
               shares[SplitType.EQUAL] = weightMap[p.id]!;
             }
           }
