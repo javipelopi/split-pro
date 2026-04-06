@@ -1,4 +1,3 @@
-import { SplitType } from '@prisma/client';
 import { type GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -85,18 +84,19 @@ const AddPage: NextPageWithUser<{
         setCurrency(parseCurrencyCode(groupQuery.data.defaultCurrency));
       }
 
-      setParticipants([
-        currentUser,
-        ...groupQuery.data.groupUsers
-          .map((gu) => gu.user)
-          .filter((user) => user.id !== currentUser.id),
-      ]);
-
-      // Pre-fill EQUAL split weights from group member weights
-      const { setSplitShare } = useAddExpenseStore.getState().actions;
-      for (const gu of groupQuery.data.groupUsers) {
-        setSplitShare(SplitType.EQUAL, gu.userId, BigInt(gu.weight ?? 1));
-      }
+      const weightMap = Object.fromEntries(
+        groupQuery.data.groupUsers.map((gu) => [gu.userId, BigInt(gu.weight ?? 1)]),
+      );
+      setParticipants(
+        [
+          currentUser,
+          ...groupQuery.data.groupUsers
+            .map((gu) => gu.user)
+            .filter((user) => user.id !== currentUser.id),
+        ],
+        undefined,
+        weightMap,
+      );
 
       useAddExpenseStore.setState({ showFriends: false });
     }

@@ -148,10 +148,21 @@ export const useAddExpenseStore = create<AddExpenseState>()((set) => ({
       }),
     setParticipants: (participants, splitType, weightMap) =>
       set((state) => {
+        // If a weightMap is provided with non-uniform weights, default to SHARE split
+        // Instead of stuffing weights into EQUAL (which would show "split equally" in UI).
+        const hasCustomWeights =
+          weightMap &&
+          Object.values(weightMap).some((w) => w !== 1n) &&
+          Object.values(weightMap).length > 0;
+
         const splitShares = participants.reduce<SplitShares>((res, p) => {
           const shares = initSplitShares();
           if (weightMap?.[p.id] !== undefined) {
-            shares[SplitType.EQUAL] = weightMap[p.id]!;
+            if (hasCustomWeights) {
+              shares[SplitType.SHARE] = weightMap[p.id]!;
+            } else {
+              shares[SplitType.EQUAL] = weightMap[p.id]!;
+            }
           }
           res[p.id] = shares;
           return res;
@@ -166,7 +177,7 @@ export const useAddExpenseStore = create<AddExpenseState>()((set) => ({
             state.payers,
           );
         } else {
-          splitType = SplitType.EQUAL;
+          splitType = hasCustomWeights ? SplitType.SHARE : SplitType.EQUAL;
         }
         return calculateParticipantSplit({ ...state, participants, splitType, splitShares });
       }),
