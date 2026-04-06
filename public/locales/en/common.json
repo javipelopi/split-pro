@@ -484,7 +484,10 @@
         "title": "Review & import",
         "description": "{{count}} expenses ready to import. Review before confirming.",
         "no_expenses": "No valid expenses found in the CSV file.",
-        "import_expenses": "Import {{count}} expenses"
+        "import_expenses": "Import {{count}} expenses",
+        "mismatch_warning": "{{count}} row(s) have a mismatch between the amount and split amounts — please double-check before importing.",
+        "transfer_label": "Settlement",
+        "income_label": "Income"
       }
     }
   }

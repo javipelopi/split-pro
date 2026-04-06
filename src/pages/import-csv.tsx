@@ -1,6 +1,6 @@
 import { PaperClipIcon } from '@heroicons/react/24/solid';
 import { SplitType } from '@prisma/client';
-import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -20,10 +20,11 @@ import {
   type ColumnMapping,
   MAPPABLE_FIELDS,
   type MappableField,
+  type ParsedExpensePayload,
   autoDetectMapping,
-  parseAmount,
+  extractMemberNames,
   parseCSV,
-  parseDate,
+  parseRowsToExpensePayloads,
   readFileAsText,
 } from '~/lib/csv';
 import { type NextPageWithUser } from '~/types';
@@ -35,21 +36,29 @@ type Step = 'upload' | 'mapping' | 'payers' | 'defaults' | 'preview';
 
 const STEPS: Step[] = ['upload', 'mapping', 'payers', 'defaults', 'preview'];
 
-interface ParsedExpense {
-  description: string;
-  amount: number;
-  date: Date;
-  payerName: string | null;
-  payerUserId: number | null;
-  category: string;
-}
-
 const FIELD_LABELS: Record<MappableField, string> = {
   amount: 'Amount',
   date: 'Date',
   description: 'Description',
   payer: 'Payer',
   category: 'Category',
+  forWhom: 'For whom',
+  splitAmounts: 'Split amounts',
+  type: 'Type',
+};
+
+const validateCategory = (category: string): string => {
+  const lower = category.toLowerCase().trim();
+  if (lower in CATEGORIES) {
+    return lower;
+  }
+  // Check if it matches a subcategory
+  for (const [section, items] of Object.entries(CATEGORIES)) {
+    if (items.some((item) => item === lower)) {
+      return section;
+    }
+  }
+  return DEFAULT_CATEGORY;
 };
 
 const ImportCsvPage: NextPageWithUser = ({ user }) => {
@@ -75,9 +84,12 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     description: null,
     payer: null,
     category: null,
+    forWhom: null,
+    splitAmounts: null,
+    type: null,
   });
 
-  // Payer mapping: CSV name -> userId
+  // Maps CSV member names (from `payer` and `forWhom` columns) → group userId.
   const [payerMapping, setPayerMapping] = useState<Record<string, number>>({});
 
   // Defaults
@@ -104,81 +116,43 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     return group?.group.defaultCurrency ?? 'USD';
   }, [groupsQuery.data, selectedGroupId]);
 
-  // Extract unique payer names from CSV (split colon-separated multi-payer values)
-  const uniquePayerNames = useMemo(() => {
-    if (null === columnMapping.payer) {
+  // Extract all unique names that need to be mapped to group members:
+  // Values from the `Who paid` column (legacy + Settle Up multi-payer) AND
+  // Names from the `For whom` column.
+  const uniqueMemberLabels = useMemo(
+    () => extractMemberNames(rows, columnMapping),
+    [rows, columnMapping],
+  );
+
+  // Parse expenses from CSV data.
+  const parsedExpenses = useMemo<ParsedExpensePayload[]>(() => {
+    if (0 === rows.length) {
       return [];
     }
-    const names = new Set<string>();
-    rows.forEach((row) => {
-      const name = row[columnMapping.payer!]?.trim();
-      if (name && '' !== name) {
-        name.split(':').forEach((n) => {
-          const trimmed = n.trim();
-          if (trimmed) {
-            names.add(trimmed);
-          }
-        });
-      }
+    return parseRowsToExpensePayloads({
+      rows,
+      mapping: columnMapping,
+      nameMapping: payerMapping,
+      groupMemberIds: groupMembers.map((m) => m.id),
+      defaultPayerId,
+      defaultDate: new Date(defaultDate),
+      defaultCategory,
+      validateCategory,
     });
-    return [...names].sort();
-  }, [rows, columnMapping.payer]);
+  }, [
+    rows,
+    columnMapping,
+    payerMapping,
+    groupMembers,
+    defaultPayerId,
+    defaultDate,
+    defaultCategory,
+  ]);
 
-  // Parse expenses from CSV data
-  const parsedExpenses = useMemo((): ParsedExpense[] => {
-    if (0 === rows.length || null === columnMapping.amount) {
-      return [];
-    }
-
-    return rows
-      .map((row) => {
-        const amountStr = null !== columnMapping.amount ? (row[columnMapping.amount] ?? '') : '';
-        const amount = parseAmount(amountStr);
-        if (null === amount || 0 === amount) {
-          return null;
-        }
-
-        const dateStr = null !== columnMapping.date ? (row[columnMapping.date] ?? '') : '';
-        const date = parseDate(dateStr) ?? new Date(defaultDate);
-
-        const description =
-          null !== columnMapping.description
-            ? (row[columnMapping.description] ?? 'Expense')
-            : 'Expense';
-
-        const payerName =
-          null !== columnMapping.payer ? (row[columnMapping.payer]?.trim() ?? null) : null;
-        let payerUserId: number | null = null;
-        if (payerName) {
-          if (payerName.includes(':')) {
-            for (const n of payerName.split(':')) {
-              const mapped = payerMapping[n.trim()];
-              if (mapped) {
-                payerUserId = mapped;
-                break;
-              }
-            }
-          } else {
-            payerUserId = payerMapping[payerName] ?? null;
-          }
-        }
-
-        const category =
-          null !== columnMapping.category
-            ? (row[columnMapping.category]?.trim() ?? defaultCategory)
-            : defaultCategory;
-
-        return {
-          description: '' === description.trim() ? 'Expense' : description,
-          amount,
-          date,
-          payerName,
-          payerUserId,
-          category: validateCategory(category),
-        };
-      })
-      .filter((e): e is ParsedExpense => null !== e);
-  }, [rows, columnMapping, payerMapping, defaultDate, defaultCategory]);
+  const mismatchCount = useMemo(
+    () => parsedExpenses.filter((e) => e.amountMismatch).length,
+    [parsedExpenses],
+  );
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +200,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
 
   const canProceedFromUpload = null !== uploadedFile && null !== selectedGroupId && rows.length > 0;
   const canProceedFromMapping = null !== columnMapping.amount;
-  const needsPayerMapping = null !== columnMapping.payer && uniquePayerNames.length > 0;
+  const needsPayerMapping = uniqueMemberLabels.length > 0;
 
   const goToStep = useCallback(
     (step: Step) => {
@@ -267,32 +241,39 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
 
     const { toSafeBigInt } = getCurrencyHelpers({ currency: groupCurrency });
 
+    const splitTypeMap = {
+      EQUAL: SplitType.EQUAL,
+      EXACT: SplitType.EXACT,
+      SETTLEMENT: SplitType.SETTLEMENT,
+    } as const;
+
     const expenses = parsedExpenses.map((expense) => {
-      const paidBy = expense.payerUserId ?? defaultPayerId;
-      const amountBigInt = toSafeBigInt(expense.amount);
+      const sign = expense.isIncome ? -1n : 1n;
+      const amountBigInt = toSafeBigInt(expense.amount) * sign;
 
-      // Equal split among all group members
-      const participantCount = groupMembers.length;
-      const perPerson = amountBigInt / BigInt(participantCount);
-      const remainder = amountBigInt - perPerson * BigInt(participantCount);
-
-      const participants = groupMembers.map((member, index) => ({
-        userId: member.id,
-        amount:
-          member.id === paidBy
-            ? -(amountBigInt - perPerson - (0 === index ? remainder : 0n))
-            : perPerson + (0 === index ? remainder : 0n),
+      const participants = expense.participants.map((p) => ({
+        userId: p.userId,
+        amount: toSafeBigInt(p.amount) * sign,
       }));
 
+      const payers =
+        expense.payers.length > 1
+          ? expense.payers.map((p) => ({
+              userId: p.userId,
+              amount: toSafeBigInt(p.amount) * sign,
+            }))
+          : undefined;
+
       return {
-        paidBy,
+        paidBy: expense.paidBy,
         name: expense.description,
         category: expense.category,
         amount: amountBigInt,
         groupId: selectedGroupId,
-        splitType: SplitType.EQUAL,
+        splitType: splitTypeMap[expense.splitType],
         currency: groupCurrency,
         participants,
+        payers,
         expenseDate: expense.date,
       };
     });
@@ -307,16 +288,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
         toast.error(t('errors.something_went_wrong'));
       },
     });
-  }, [
-    selectedGroupId,
-    parsedExpenses,
-    defaultPayerId,
-    groupCurrency,
-    groupMembers,
-    addExpenseMutation,
-    router,
-    t,
-  ]);
+  }, [selectedGroupId, parsedExpenses, groupCurrency, addExpenseMutation, router, t]);
 
   const { toUIString } = getCurrencyHelpers({ currency: groupCurrency });
 
@@ -523,7 +495,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 {t('import_csv.steps.payers.description')}
               </p>
 
-              {uniquePayerNames.map((name) => (
+              {uniqueMemberLabels.map((name) => (
                 <div key={name} className="flex flex-col gap-1">
                   <Label>{name}</Label>
                   <NativeSelect
@@ -633,11 +605,19 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 {t('import_csv.steps.preview.description', { count: parsedExpenses.length })}
               </p>
 
+              {mismatchCount > 0 && (
+                <div className="text-warning flex items-start gap-2 rounded border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    {t('import_csv.steps.preview.mismatch_warning', { count: mismatchCount })}
+                  </span>
+                </div>
+              )}
+
               <div className="max-h-[50vh] overflow-auto">
                 {parsedExpenses.map((expense, i) => {
-                  const payer = expense.payerUserId
-                    ? groupMembers.find((m) => m.id === expense.payerUserId)
-                    : groupMembers.find((m) => m.id === defaultPayerId);
+                  const payer = groupMembers.find((m) => m.id === expense.paidBy);
+                  const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
 
                   return (
                     <div key={i}>
@@ -647,12 +627,22 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                           <span className="text-muted-foreground text-xs">
                             {expense.date.toLocaleDateString()}
                             {payer ? ` · ${payer.name ?? payer.email}` : ''}
+                            {'SETTLEMENT' === expense.splitType
+                              ? ` · ${t('import_csv.steps.preview.transfer_label')}`
+                              : ''}
+                            {expense.isIncome
+                              ? ` · ${t('import_csv.steps.preview.income_label')}`
+                              : ''}
                           </span>
                         </div>
-                        <span className="ml-2 shrink-0 font-medium">
+                        <span
+                          className={`ml-2 shrink-0 font-medium ${
+                            expense.amountMismatch ? 'text-yellow-500' : ''
+                          }`}
+                        >
                           {toUIString(
                             getCurrencyHelpers({ currency: groupCurrency }).toSafeBigInt(
-                              expense.amount,
+                              displayAmount,
                             ),
                           )}
                         </span>
@@ -696,20 +686,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
       </MainLayout>
     </>
   );
-};
-
-const validateCategory = (category: string): string => {
-  const lower = category.toLowerCase().trim();
-  if (lower in CATEGORIES) {
-    return lower;
-  }
-  // Check if it matches a subcategory
-  for (const [section, items] of Object.entries(CATEGORIES)) {
-    if (items.some((item) => item === lower)) {
-      return section;
-    }
-  }
-  return DEFAULT_CATEGORY;
 };
 
 ImportCsvPage.auth = true;
