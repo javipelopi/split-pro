@@ -11,8 +11,19 @@ permissions:
   packages: write
 
 jobs:
+  # Gate every Docker build on a full runtime smoke test: migrations run, the
+  # app boots against a real pg_cron-capable Postgres, /api/health reports ok,
+  # and the startup logs contain no prisma:error lines. This catches the class
+  # of bugs where `src/instrumentation.ts` swallows setup failures via
+  # `.catch(console.error)` — the previous release (v0.6.0) shipped a broken
+  # pg_cron `$$`-quoted SQL call that only surfaced at runtime in production.
+  smoke:
+    name: Smoke test
+    uses: ./.github/workflows/smoke-test.yaml
+
   build:
     name: Build ${{ matrix.platform }}
+    needs: smoke
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false

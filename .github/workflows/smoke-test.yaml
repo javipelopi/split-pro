@@ -1,0 +1,176 @@
+name: Smoke Test
+
+# Exercises the real runtime startup path against a Postgres instance with
+# pg_cron installed, so bugs in `src/instrumentation.ts` and anything it calls
+# (schedule setup, migrations, auth env validation) are caught before a
+# release tag is cut.
+#
+# Failure modes this catches:
+#   - instrumentation.ts errors that are normally swallowed by `.catch(console.error)`
+#     now surface via the `/api/health` endpoint, which this workflow polls.
+#   - `prisma:error` lines in the startup logs fail the job outright as a
+#     belt-and-suspenders check.
+#
+# Called automatically on push to main and pull requests. Also invoked by
+# `publish.yaml` as a gate before any Docker image gets built.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Runtime smoke test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # pgvector/pg_cron-capable Postgres. Using the same image family as
+        # `docker/dev/compose.yml` so dev and CI agree on what's installed.
+        image: ossapps/postgres:17.7-trixie
+        env:
+          POSTGRES_USER: splitpro
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: splitpro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U splitpro -d splitpro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://splitpro:password@localhost:5432/splitpro
+      NEXTAUTH_SECRET: ci-smoke-test-secret
+      NEXTAUTH_URL: http://localhost:3000
+      ENABLE_SENDING_INVITES: 'false'
+      # These two are what make instrumentation.ts actually try to schedule
+      # the pg_cron job — without them the code path is skipped and we'd
+      # miss the bug we're trying to catch.
+      CLEAR_CACHE_CRON_RULE: '0 2 * * 0'
+      CACHE_RETENTION_INTERVAL: '2 days'
+      SKIP_ENV_VALIDATION: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for postgres + verify pg_cron is available
+        run: |
+          for i in {1..30}; do
+            if PGPASSWORD=password psql -h localhost -U splitpro -d splitpro -c 'SELECT 1' >/dev/null 2>&1; then
+              echo "postgres is up"
+              break
+            fi
+            sleep 1
+          done
+          # Make sure pg_cron ships with this image — if not, this smoke test
+          # is worthless for catching the bug class it was designed for.
+          PGPASSWORD=password psql -h localhost -U splitpro -d splitpro -c \
+            "SELECT default_version FROM pg_available_extensions WHERE name='pg_cron';" \
+            | grep -E '[0-9]+\.[0-9]+' || {
+              echo "::error::pg_cron extension is not available on the smoke test Postgres image"
+              exit 1
+            }
+
+      - name: Apply migrations
+        run: pnpm prisma migrate deploy
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start app in background
+        run: |
+          mkdir -p /tmp/smoke
+          nohup pnpm start > /tmp/smoke/app.log 2>&1 &
+          echo $! > /tmp/smoke/app.pid
+          echo "Launched app with PID $(cat /tmp/smoke/app.pid)"
+
+      - name: Wait for /api/health to report ok
+        id: health
+        run: |
+          # Startup tasks in instrumentation.ts run inside setTimeout(10s),
+          # so the cron:bank-cache check only flips to ok/failed after ~10s.
+          # We poll for up to 90s.
+          for i in {1..45}; do
+            if body=$(curl -sS --max-time 5 http://localhost:3000/api/health 2>/dev/null); then
+              echo "health body: $body"
+              status=$(echo "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{console.log(JSON.parse(s).status)}catch{console.log('parse-error')}})")
+              pending=$(echo "$body" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{console.log(JSON.parse(s).checks.filter(c=>c.status==='pending').length)}catch{console.log('parse-error')}})")
+              if [ "$status" = "ok" ] && [ "$pending" = "0" ]; then
+                echo "health is ok with no pending checks"
+                echo "body<<EOF" >> "$GITHUB_OUTPUT"
+                echo "$body" >> "$GITHUB_OUTPUT"
+                echo "EOF" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ "$status" = "degraded" ]; then
+                echo "::error::/api/health reports degraded: $body"
+                exit 1
+              fi
+            fi
+            sleep 2
+          done
+          echo "::error::/api/health did not reach ok state within 90s"
+          curl -sS http://localhost:3000/api/health || true
+          exit 1
+
+      - name: Hit key routes
+        run: |
+          set -e
+          for route in / /en/home /en/add /en/balances /en/groups; do
+            code=$(curl -sS -L -o /dev/null -w "%{http_code}" "http://localhost:3000${route}")
+            echo "$route -> $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::Route $route returned HTTP $code (expected 200)"
+              exit 1
+            fi
+          done
+
+      - name: Scan startup logs for prisma errors
+        run: |
+          # Belt-and-suspenders: even if /api/health passes, any prisma:error
+          # line in the startup logs is a signal that something went wrong
+          # in a path that might not be covered by startup checks yet.
+          if grep -E '^prisma:error|PrismaClientKnownRequestError|PrismaClientUnknownRequestError' /tmp/smoke/app.log; then
+            echo "::error::Startup logs contain prisma errors — see log above"
+            exit 1
+          fi
+          # Also catch generic 'Error creating' messages from .catch handlers
+          # that haven't been wired to startupDiagnostics yet.
+          if grep -E 'Error creating recurring|Error creating cron' /tmp/smoke/app.log; then
+            echo "::error::Startup logs contain background task errors — see log above"
+            exit 1
+          fi
+          echo "No prisma errors or background task errors detected in startup logs"
+
+      - name: Dump app logs (always)
+        if: always()
+        run: |
+          echo '::group::App startup logs'
+          cat /tmp/smoke/app.log || true
+          echo '::endgroup::'
+
+      - name: Stop app
+        if: always()
+        run: |
+          if [ -f /tmp/smoke/app.pid ]; then
+            kill "$(cat /tmp/smoke/app.pid)" 2>/dev/null || true
+          fi
