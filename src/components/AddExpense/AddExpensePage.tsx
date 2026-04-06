@@ -46,6 +46,7 @@ export const AddOrEditExpensePage: React.FC<{
   const expenseDate = useAddExpenseStore((s) => s.expenseDate);
   const isExpenseSettled = useAddExpenseStore((s) => s.canSplitScreenClosed);
   const paidBy = useAddExpenseStore((s) => s.paidBy);
+  const payers = useAddExpenseStore((s) => s.payers);
   const splitType = useAddExpenseStore((s) => s.splitType);
   const fileKey = useAddExpenseStore((s) => s.fileKey);
   const currentUser = useAddExpenseStore((s) => s.currentUser);
@@ -128,6 +129,13 @@ export const AddOrEditExpensePage: React.FC<{
               amount: (p.amount ?? 0n) * sign,
             })),
             paidBy: paidBy.id,
+            payers:
+              payers.length > 1
+                ? payers.map((p) => ({
+                    userId: p.user.id,
+                    amount: p.amount * sign,
+                  }))
+                : undefined,
             category,
             fileKey,
             expenseDate,
@@ -197,6 +205,7 @@ export const AddOrEditExpensePage: React.FC<{
     addExpenseMutation,
     group,
     paidBy,
+    payers,
     splitType,
     fileKey,
     isExpenseSettled,
@@ -325,7 +334,9 @@ export const AddOrEditExpensePage: React.FC<{
                   <p>{t(`ui.expense.${isNegative ? 'received_by' : 'paid_by'}`)}</p>
                   <PayerSelectionForm>
                     <Button variant="ghost" className="text-primary h-8 px-1.5 py-0 text-base">
-                      {displayName(paidBy, currentUser?.id, 'dativus')}
+                      {payers.length > 1
+                        ? `${payers.length} ${t('ui.expense.people')}`
+                        : displayName(paidBy, currentUser?.id, 'dativus')}
                     </Button>
                   </PayerSelectionForm>
                   <p>{t('ui.and')} </p>

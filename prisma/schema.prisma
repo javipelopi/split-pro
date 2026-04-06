@@ -56,6 +56,7 @@ model User {
   addedExpenses       Expense[]            @relation("AddedByUser")
   deletedExpenses     Expense[]            @relation("DeletedByUser")
   paidExpenses        Expense[]            @relation("PaidByUser")
+  expensePayers       ExpensePayer[]
   updatedExpenses     Expense[]            @relation("UpdatedByUser")
   expenseNotes        ExpenseNote[]
   expenseParticipants ExpenseParticipant[]
@@ -168,6 +169,7 @@ model Expense {
   updatedByUser       User?                @relation("UpdatedByUser", fields: [updatedBy], references: [id])
   expenseNotes        ExpenseNote[]
   expenseParticipants ExpenseParticipant[]
+  expensePayers       ExpensePayer[]
 
   @@index([groupId])
   @@index([paidBy])
@@ -175,6 +177,17 @@ model Expense {
 }
 
 model ExpenseParticipant {
+  userId    Int
+  amount    BigInt
+  expenseId String  @db.Uuid
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([expenseId, userId])
+  @@schema("public")
+}
+
+model ExpensePayer {
   userId    Int
   amount    BigInt
   expenseId String  @db.Uuid
