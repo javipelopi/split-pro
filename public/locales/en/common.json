@@ -446,7 +446,8 @@
   "import_csv": {
     "title": "Import CSV",
     "errors": {
-      "empty_file": "The file appears to be empty"
+      "empty_file": "The file appears to be empty",
+      "no_rows_selected": "No rows selected — tick at least one row to import."
     },
     "messages": {
       "import_success": "Successfully imported {{count}} expenses"
@@ -474,20 +475,40 @@
       },
       "defaults": {
         "title": "Default values",
-        "description": "Set defaults for fields not mapped to CSV columns.",
+        "description": "Set defaults for fields that are missing in the CSV.",
         "default_payer": "Default payer",
         "default_date": "Default date",
         "default_category": "Default category",
+        "default_description": "Default description",
+        "default_amount": "Default amount",
+        "default_amount_hint": "Used when a row has no amount. Rows with a zero amount are skipped.",
+        "default_split_type": "Default split type",
+        "split_type_equal": "Equal split among group members",
+        "split_type_share": "Share split among group members",
+        "split_type_drop": "Skip rows without explicit split info",
         "currency_note": "Expenses will use the group currency: {{currency}}"
       },
       "preview": {
         "title": "Review & import",
-        "description": "{{count}} expenses ready to import. Review before confirming.",
+        "description": "{{count}} expenses parsed from the CSV.",
         "no_expenses": "No valid expenses found in the CSV file.",
         "import_expenses": "Import {{count}} expenses",
-        "mismatch_warning": "{{count}} row(s) have a mismatch between the amount and split amounts — please double-check before importing.",
+        "select_all": "{{selected}} of {{total}} selected",
+        "mismatch_warning": "{{count}} selected row(s) have a mismatch between the amount and split amounts — please double-check before importing.",
         "transfer_label": "Settlement",
-        "income_label": "Income"
+        "income_label": "Income",
+        "locked_label": "Multi-payer",
+        "edited_label": "Edited",
+        "edit": {
+          "description": "Description",
+          "amount": "Amount",
+          "date": "Date",
+          "payer": "Payer",
+          "category": "Category",
+          "is_income": "Income (refund)",
+          "locked_hint": "Per-member amounts are preserved from the CSV and can't be edited here.",
+          "reset": "Reset row"
+        }
       }
     }
   }

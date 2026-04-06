@@ -1,28 +1,37 @@
 import { PaperClipIcon } from '@heroicons/react/24/solid';
 import { SplitType } from '@prisma/client';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { CategoryPicker } from '~/components/AddExpense/CategoryPicker';
 import MainLayout from '~/components/Layout/MainLayout';
 import { Button } from '~/components/ui/button';
+import { Checkbox } from '~/components/ui/checkbox';
+import { CurrencyInput } from '~/components/ui/currency-input';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '~/components/ui/native-select';
 import { Separator } from '~/components/ui/separator';
 import { LoadingSpinner } from '~/components/ui/spinner';
+import { Switch } from '~/components/ui/switch';
 import { CATEGORIES, DEFAULT_CATEGORY } from '~/lib/category';
+import { CURRENCIES, isCurrencyCode } from '~/lib/currency';
 import {
   type ColumnMapping,
+  type FallbackSplitType,
   MAPPABLE_FIELDS,
   type MappableField,
   type ParsedExpensePayload,
+  type RowOverride,
+  applyRowOverride,
   autoDetectMapping,
   extractMemberNames,
+  filterSelectedExpenses,
   parseCSV,
   parseRowsToExpensePayloads,
   readFileAsText,
@@ -61,6 +70,234 @@ const validateCategory = (category: string): string => {
   return DEFAULT_CATEGORY;
 };
 
+/**
+ * Convert a BigInt value (in minor units) to a decimal number, using the
+ * currency's `decimalDigits`. Used when a CurrencyInput hands us a bigint
+ * and we need a plain number to stash in a row override.
+ */
+const bigIntToDecimal = (value: bigint, currency: string): number => {
+  const code = isCurrencyCode(currency) ? currency : 'USD';
+  const { decimalDigits } = CURRENCIES[code];
+  const multiplier = 10 ** decimalDigits;
+  return Number(value) / multiplier;
+};
+
+/** Format a decimal number with a dot-separated fraction for CurrencyInput. */
+const decimalToDisplayStr = (value: number): string => String(value);
+
+interface PreviewRowProps {
+  index: number;
+  expense: ParsedExpensePayload;
+  parsed: ParsedExpensePayload;
+  groupMembers: { id: number; name: string | null; email: string | null }[];
+  groupCurrency: string;
+  isSelected: boolean;
+  isExpanded: boolean;
+  isLast: boolean;
+  hasOverride: boolean;
+  rowAmountStr: string | undefined;
+  onToggleSelection: (index: number) => void;
+  onToggleExpanded: (index: number) => void;
+  onUpdateOverride: (index: number, update: Partial<RowOverride>) => void;
+  onResetRow: (index: number) => void;
+  onAmountStrChange: (index: number, value: string) => void;
+  t: (key: string, vars?: Record<string, unknown>) => string;
+}
+
+const PreviewRow: React.FC<PreviewRowProps> = ({
+  index,
+  expense,
+  parsed,
+  groupMembers,
+  groupCurrency,
+  isSelected,
+  isExpanded,
+  isLast,
+  hasOverride,
+  rowAmountStr,
+  onToggleSelection,
+  onToggleExpanded,
+  onUpdateOverride,
+  onResetRow,
+  onAmountStrChange,
+  t,
+}) => {
+  const payer = groupMembers.find((m) => m.id === expense.paidBy);
+  const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
+  const isLocked = parsed.locked;
+
+  const handleToggleSelection = useCallback(
+    () => onToggleSelection(index),
+    [index, onToggleSelection],
+  );
+  const handleToggleExpanded = useCallback(
+    () => onToggleExpanded(index),
+    [index, onToggleExpanded],
+  );
+  const handleDescriptionChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onUpdateOverride(index, { description: e.target.value });
+    },
+    [index, onUpdateOverride],
+  );
+  const handleAmountChange = useCallback(
+    ({ strValue, bigIntValue }: { strValue?: string; bigIntValue?: bigint }) => {
+      if (undefined !== strValue) {
+        onAmountStrChange(index, strValue);
+      }
+      if (undefined !== bigIntValue) {
+        onUpdateOverride(index, { amount: bigIntToDecimal(bigIntValue, groupCurrency) });
+      }
+    },
+    [index, onAmountStrChange, onUpdateOverride, groupCurrency],
+  );
+  const handleDateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const parsedDate = new Date(e.target.value);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        onUpdateOverride(index, { date: parsedDate });
+      }
+    },
+    [index, onUpdateOverride],
+  );
+  const handlePayerChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      onUpdateOverride(index, { paidBy: parseInt(e.target.value) });
+    },
+    [index, onUpdateOverride],
+  );
+  const handleCategoryChange = useCallback(
+    (category: string) => {
+      onUpdateOverride(index, { category });
+    },
+    [index, onUpdateOverride],
+  );
+  const handleIsIncomeChange = useCallback(
+    (checked: boolean) => {
+      onUpdateOverride(index, { isIncome: checked });
+    },
+    [index, onUpdateOverride],
+  );
+  const handleReset = useCallback(() => onResetRow(index), [index, onResetRow]);
+
+  return (
+    <div className="py-2">
+      <div className="flex items-start gap-2">
+        <Checkbox checked={isSelected} onCheckedChange={handleToggleSelection} className="mt-1" />
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 flex-col text-left"
+          onClick={handleToggleExpanded}
+        >
+          <span className="truncate font-medium">{expense.description}</span>
+          <span className="text-muted-foreground text-xs">
+            {expense.date.toLocaleDateString()}
+            {payer ? ` · ${payer.name ?? payer.email}` : ''}
+            {'SETTLEMENT' === expense.splitType
+              ? ` · ${t('import_csv.steps.preview.transfer_label')}`
+              : ''}
+            {expense.isIncome ? ` · ${t('import_csv.steps.preview.income_label')}` : ''}
+            {isLocked && 'SETTLEMENT' !== expense.splitType
+              ? ` · ${t('import_csv.steps.preview.locked_label')}`
+              : ''}
+            {hasOverride ? ` · ${t('import_csv.steps.preview.edited_label')}` : ''}
+          </span>
+        </button>
+        <span
+          className={`ml-2 shrink-0 font-medium ${expense.amountMismatch ? 'text-yellow-500' : ''}`}
+        >
+          {getCurrencyHelpers({ currency: groupCurrency }).toUIString(
+            getCurrencyHelpers({ currency: groupCurrency }).toSafeBigInt(displayAmount),
+          )}
+        </span>
+      </div>
+
+      {isExpanded && (
+        <div className="bg-muted/30 mt-2 flex flex-col gap-3 rounded border p-3">
+          <div className="flex flex-col gap-1">
+            <Label>{t('import_csv.steps.preview.edit.description')}</Label>
+            <Input value={expense.description} onChange={handleDescriptionChange} />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label>{t('import_csv.steps.preview.edit.amount')}</Label>
+            <CurrencyInput
+              currency={groupCurrency}
+              disabled={isLocked}
+              strValue={rowAmountStr ?? decimalToDisplayStr(expense.amount)}
+              onValueChange={handleAmountChange}
+            />
+            {isLocked && (
+              <p className="text-muted-foreground text-xs">
+                {t('import_csv.steps.preview.edit.locked_hint')}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label>{t('import_csv.steps.preview.edit.date')}</Label>
+            <Input
+              type="date"
+              value={expense.date.toISOString().split('T')[0]}
+              onChange={handleDateChange}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label>{t('import_csv.steps.preview.edit.payer')}</Label>
+            <NativeSelect
+              disabled={isLocked}
+              value={expense.paidBy}
+              onChange={handlePayerChange}
+              className="w-full"
+            >
+              {groupMembers.map((member) => (
+                <NativeSelectOption key={member.id} value={member.id}>
+                  {member.name ?? member.email ?? `User ${member.id}`}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label>{t('import_csv.steps.preview.edit.category')}</Label>
+            <div className="flex items-center gap-2">
+              <CategoryPicker category={expense.category} onCategoryPick={handleCategoryChange} />
+              <span className="text-muted-foreground text-sm">{expense.category}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor={`is-income-${index}`}>
+              {t('import_csv.steps.preview.edit.is_income')}
+            </Label>
+            <Switch
+              id={`is-income-${index}`}
+              checked={expense.isIncome}
+              onCheckedChange={handleIsIncomeChange}
+            />
+          </div>
+
+          {hasOverride && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              className="self-start"
+            >
+              <RotateCcw className="mr-2 h-3 w-3" />
+              {t('import_csv.steps.preview.edit.reset')}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {!isLast && <Separator className="mt-2" />}
+    </div>
+  );
+};
+
 const ImportCsvPage: NextPageWithUser = ({ user }) => {
   const { t } = useTranslation();
   const router = useRouter();
@@ -96,6 +333,18 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
   const [defaultPayerId, setDefaultPayerId] = useState<number>(user.id);
   const [defaultDate, setDefaultDate] = useState<string>(new Date().toISOString().split('T')[0]!);
   const [defaultCategory, setDefaultCategory] = useState<string>(DEFAULT_CATEGORY);
+  const [defaultDescription, setDefaultDescription] = useState<string>('Expense');
+  const [defaultAmount, setDefaultAmount] = useState<number>(0);
+  const [defaultAmountStr, setDefaultAmountStr] = useState<string>('');
+  const [defaultSplitType, setDefaultSplitType] = useState<FallbackSplitType>('EQUAL');
+
+  // Per-row state used by the preview step. All three reset whenever the
+  // Parse output changes (new file, remapping, etc.) because row identity
+  // Is just the array index.
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [rowOverrides, setRowOverrides] = useState<Record<number, RowOverride>>({});
+  const [rowAmountStrs, setRowAmountStrs] = useState<Record<number, string>>({});
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   // Queries
   const groupsQuery = api.group.getAllGroups.useQuery();
@@ -137,6 +386,9 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
       defaultPayerId,
       defaultDate: new Date(defaultDate),
       defaultCategory,
+      defaultDescription,
+      defaultAmount,
+      defaultSplitType,
       validateCategory,
     });
   }, [
@@ -147,12 +399,39 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     defaultPayerId,
     defaultDate,
     defaultCategory,
+    defaultDescription,
+    defaultAmount,
+    defaultSplitType,
   ]);
 
-  const mismatchCount = useMemo(
-    () => parsedExpenses.filter((e) => e.amountMismatch).length,
-    [parsedExpenses],
+  const groupMemberIds = useMemo(() => groupMembers.map((m) => m.id), [groupMembers]);
+
+  // Reset per-row state whenever the parser output changes. Row identity is
+  // Just the index, so re-parsing invalidates any stored overrides/selection.
+  useEffect(() => {
+    setSelectedRows(new Set(parsedExpenses.map((_, i) => i)));
+    setRowOverrides({});
+    setRowAmountStrs({});
+    setExpandedRows(new Set());
+  }, [parsedExpenses]);
+
+  // Effective (parsed + override) expense list used for preview and import.
+  const effectiveExpenses = useMemo<ParsedExpensePayload[]>(
+    () =>
+      parsedExpenses.map((expense, index) => {
+        const override = rowOverrides[index];
+        return override ? applyRowOverride(expense, override, groupMemberIds) : expense;
+      }),
+    [parsedExpenses, rowOverrides, groupMemberIds],
   );
+
+  const mismatchCount = useMemo(
+    () => effectiveExpenses.filter((e, i) => e.amountMismatch && selectedRows.has(i)).length,
+    [effectiveExpenses, selectedRows],
+  );
+
+  const selectedCount = selectedRows.size;
+  const allSelected = selectedCount === parsedExpenses.length && parsedExpenses.length > 0;
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,6 +513,82 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     }
   }, [currentStep, goToStep]);
 
+  const updateRowOverride = useCallback((index: number, update: Partial<RowOverride>) => {
+    setRowOverrides((prev) => ({ ...prev, [index]: { ...prev[index], ...update } }));
+  }, []);
+
+  const resetRow = useCallback((index: number) => {
+    setRowOverrides((prev) => {
+      const { [index]: _omit, ...rest } = prev;
+      return rest;
+    });
+    setRowAmountStrs((prev) => {
+      const { [index]: _omit, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  const toggleRowSelection = useCallback((index: number) => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleAllRows = useCallback(() => {
+    setSelectedRows((prev) => {
+      if (prev.size === parsedExpenses.length) {
+        return new Set();
+      }
+      return new Set(parsedExpenses.map((_, i) => i));
+    });
+  }, [parsedExpenses]);
+
+  const toggleRowExpanded = useCallback((index: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleRowAmountStrChange = useCallback((index: number, value: string) => {
+    setRowAmountStrs((prev) => ({ ...prev, [index]: value }));
+  }, []);
+
+  const handleDefaultDescriptionChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setDefaultDescription(e.target.value),
+    [],
+  );
+
+  const handleDefaultAmountChange = useCallback(
+    ({ strValue, bigIntValue }: { strValue?: string; bigIntValue?: bigint }) => {
+      if (undefined !== strValue) {
+        setDefaultAmountStr(strValue);
+      }
+      if (undefined !== bigIntValue) {
+        setDefaultAmount(bigIntToDecimal(bigIntValue, groupCurrency));
+      }
+    },
+    [groupCurrency],
+  );
+
+  const handleDefaultSplitTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if ('EQUAL' === value || 'SHARE' === value || 'DROP' === value) {
+      setDefaultSplitType(value);
+    }
+  }, []);
+
   const handleImport = useCallback(() => {
     if (null === selectedGroupId) {
       return;
@@ -243,11 +598,14 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
 
     const splitTypeMap = {
       EQUAL: SplitType.EQUAL,
+      SHARE: SplitType.SHARE,
       EXACT: SplitType.EXACT,
       SETTLEMENT: SplitType.SETTLEMENT,
     } as const;
 
-    const expenses = parsedExpenses.map((expense) => {
+    const selected = filterSelectedExpenses(effectiveExpenses, selectedRows);
+
+    const expenses = selected.map((expense) => {
       const sign = expense.isIncome ? -1n : 1n;
       const amountBigInt = toSafeBigInt(expense.amount) * sign;
 
@@ -278,6 +636,11 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
       };
     });
 
+    if (0 === expenses.length) {
+      toast.error(t('import_csv.errors.no_rows_selected'));
+      return;
+    }
+
     addExpenseMutation.mutate(expenses, {
       onSuccess: () => {
         toast.success(t('import_csv.messages.import_success', { count: expenses.length }));
@@ -288,9 +651,15 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
         toast.error(t('errors.something_went_wrong'));
       },
     });
-  }, [selectedGroupId, parsedExpenses, groupCurrency, addExpenseMutation, router, t]);
-
-  const { toUIString } = getCurrencyHelpers({ currency: groupCurrency });
+  }, [
+    selectedGroupId,
+    effectiveExpenses,
+    selectedRows,
+    groupCurrency,
+    addExpenseMutation,
+    router,
+    t,
+  ]);
 
   const stepIndex = STEPS.indexOf(currentStep);
 
@@ -534,6 +903,49 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 {t('import_csv.steps.defaults.description')}
               </p>
 
+              {/* Default description */}
+              <div className="flex flex-col gap-1">
+                <Label>{t('import_csv.steps.defaults.default_description')}</Label>
+                <Input
+                  value={defaultDescription}
+                  onChange={handleDefaultDescriptionChange}
+                  placeholder="Expense"
+                />
+              </div>
+
+              {/* Default amount */}
+              <div className="flex flex-col gap-1">
+                <Label>{t('import_csv.steps.defaults.default_amount')}</Label>
+                <CurrencyInput
+                  currency={groupCurrency}
+                  strValue={defaultAmountStr}
+                  onValueChange={handleDefaultAmountChange}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {t('import_csv.steps.defaults.default_amount_hint')}
+                </p>
+              </div>
+
+              {/* Default split type */}
+              <div className="flex flex-col gap-1">
+                <Label>{t('import_csv.steps.defaults.default_split_type')}</Label>
+                <NativeSelect
+                  value={defaultSplitType}
+                  onChange={handleDefaultSplitTypeChange}
+                  className="w-full"
+                >
+                  <NativeSelectOption value="EQUAL">
+                    {t('import_csv.steps.defaults.split_type_equal')}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="SHARE">
+                    {t('import_csv.steps.defaults.split_type_share')}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="DROP">
+                    {t('import_csv.steps.defaults.split_type_drop')}
+                  </NativeSelectOption>
+                </NativeSelect>
+              </div>
+
               {/* Default payer */}
               {null === columnMapping.payer && (
                 <div className="flex flex-col gap-1">
@@ -614,43 +1026,47 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 </div>
               )}
 
-              <div className="max-h-[50vh] overflow-auto">
-                {parsedExpenses.map((expense, i) => {
-                  const payer = groupMembers.find((m) => m.id === expense.paidBy);
-                  const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
+              {/* Select all / none header */}
+              {parsedExpenses.length > 0 && (
+                <div className="flex items-center justify-between border-b pb-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAllRows}
+                      id="preview-select-all"
+                    />
+                    <Label htmlFor="preview-select-all" className="cursor-pointer">
+                      {t('import_csv.steps.preview.select_all', {
+                        selected: selectedCount,
+                        total: parsedExpenses.length,
+                      })}
+                    </Label>
+                  </div>
+                </div>
+              )}
 
-                  return (
-                    <div key={i}>
-                      <div className="flex items-center justify-between py-2">
-                        <div className="flex min-w-0 flex-col">
-                          <span className="truncate font-medium">{expense.description}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {expense.date.toLocaleDateString()}
-                            {payer ? ` · ${payer.name ?? payer.email}` : ''}
-                            {'SETTLEMENT' === expense.splitType
-                              ? ` · ${t('import_csv.steps.preview.transfer_label')}`
-                              : ''}
-                            {expense.isIncome
-                              ? ` · ${t('import_csv.steps.preview.income_label')}`
-                              : ''}
-                          </span>
-                        </div>
-                        <span
-                          className={`ml-2 shrink-0 font-medium ${
-                            expense.amountMismatch ? 'text-yellow-500' : ''
-                          }`}
-                        >
-                          {toUIString(
-                            getCurrencyHelpers({ currency: groupCurrency }).toSafeBigInt(
-                              displayAmount,
-                            ),
-                          )}
-                        </span>
-                      </div>
-                      {i < parsedExpenses.length - 1 && <Separator />}
-                    </div>
-                  );
-                })}
+              <div className="max-h-[60vh] overflow-auto">
+                {effectiveExpenses.map((expense, i) => (
+                  <PreviewRow
+                    key={i}
+                    index={i}
+                    expense={expense}
+                    parsed={parsedExpenses[i]!}
+                    groupMembers={groupMembers}
+                    groupCurrency={groupCurrency}
+                    isSelected={selectedRows.has(i)}
+                    isExpanded={expandedRows.has(i)}
+                    isLast={i === effectiveExpenses.length - 1}
+                    hasOverride={undefined !== rowOverrides[i]}
+                    rowAmountStr={rowAmountStrs[i]}
+                    onToggleSelection={toggleRowSelection}
+                    onToggleExpanded={toggleRowExpanded}
+                    onUpdateOverride={updateRowOverride}
+                    onResetRow={resetRow}
+                    onAmountStrChange={handleRowAmountStrChange}
+                    t={t}
+                  />
+                ))}
               </div>
 
               {0 === parsedExpenses.length && (
@@ -665,7 +1081,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 </Button>
                 <Button
                   onClick={handleImport}
-                  disabled={0 === parsedExpenses.length || addExpenseMutation.isPending}
+                  disabled={0 === selectedCount || addExpenseMutation.isPending}
                   className="flex-1"
                 >
                   {addExpenseMutation.isPending ? (
@@ -674,7 +1090,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                     <>
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       {t('import_csv.steps.preview.import_expenses', {
-                        count: parsedExpenses.length,
+                        count: selectedCount,
                       })}
                     </>
                   )}

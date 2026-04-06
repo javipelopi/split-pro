@@ -338,6 +338,16 @@ export const extractMemberNames = (rows: string[][], mapping: ColumnMapping): st
 };
 
 /**
+ * Controls what happens to rows that can't produce a Settle Up EXACT split:
+ *  - `EQUAL`: default single-payer equal split across all group members.
+ *  - `SHARE`: same math as EQUAL, but stored as `SplitType.SHARE` so the
+ *    user can later adjust weights in the UI.
+ *  - `DROP`: skip these rows entirely — import only rows that came with
+ *    explicit `For whom` + `Split amounts` data from Settle Up.
+ */
+export type FallbackSplitType = 'EQUAL' | 'SHARE' | 'DROP';
+
+/**
  * A single expense ready to be submitted. All monetary fields are decimal
  * numbers (not BigInt) so this structure is easy to unit-test in isolation
  * from the currency helpers.
@@ -355,17 +365,23 @@ export interface ParsedExpensePayload {
    *  falls back to a single `paidBy` record automatically. */
   payers: { userId: number; amount: number }[];
   /**
-   * Per-participant net position. For EXACT/EQUAL splits the canonical
+   * Per-participant net position. For EXACT/EQUAL/SHARE splits the canonical
    * convention is `amount = paid - owed` (positive = creditor). For
    * SETTLEMENT rows the convention follows `useSettlement`: payer is
    * positive, receiver is negative.
    */
   participants: { userId: number; amount: number }[];
-  splitType: 'EQUAL' | 'EXACT' | 'SETTLEMENT';
+  splitType: 'EQUAL' | 'SHARE' | 'EXACT' | 'SETTLEMENT';
   /** True if the "Amount" column didn't match the sum of split amounts. */
   amountMismatch: boolean;
   /** True if the row's Type column was `income` (negative expense). */
   isIncome: boolean;
+  /**
+   * True when the row's payers or participants were dictated by the CSV
+   * (multi-payer or Settle Up per-member format). Callers use this flag to
+   * lock down inline editing of payer/amount for those rows.
+   */
+  locked: boolean;
 }
 
 export interface ParseRowsOptions {
@@ -379,6 +395,13 @@ export interface ParseRowsOptions {
   defaultPayerId: number;
   defaultDate: Date;
   defaultCategory: string;
+  /** Fallback when a row's description cell is empty or not mapped. */
+  defaultDescription?: string;
+  /** Fallback when a row's amount cell is empty (after `parseAmount`).
+   *  A final amount of zero still drops the row. */
+  defaultAmount?: number;
+  /** How to split rows that don't have Settle Up per-member data. */
+  defaultSplitType?: FallbackSplitType;
   /** Optional category normalizer. Defaults to identity. */
   validateCategory?: (category: string) => string;
 }
@@ -429,6 +452,9 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
     defaultPayerId,
     defaultDate,
     defaultCategory,
+    defaultDescription = 'Expense',
+    defaultAmount = 0,
+    defaultSplitType = 'EQUAL',
     validateCategory = (c) => c,
   } = options;
 
@@ -452,8 +478,10 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
 
       // --- Description ---
       const rawDescription =
-        null !== mapping.description ? (row[mapping.description] ?? 'Expense') : 'Expense';
-      const description = '' === rawDescription.trim() ? 'Expense' : rawDescription;
+        null !== mapping.description
+          ? (row[mapping.description] ?? defaultDescription)
+          : defaultDescription;
+      const description = '' === rawDescription.trim() ? defaultDescription : rawDescription;
 
       // --- Category ---
       const rawCategory =
@@ -476,9 +504,11 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
       // Build per-payer paid amounts, using parallel lists when present.
       const payerPaid: { userId: number; amount: number }[] = [];
       let rowTotal = 0;
+      let multiPayer = false;
 
       if (payerParts.length > 1 && amountParts.length === payerParts.length) {
         // Multi-payer: zip names and amounts.
+        multiPayer = true;
         for (let i = 0; i < payerParts.length; i++) {
           const userId = resolveName(payerParts[i]!);
           const amt = parseSignedAmount(amountParts[i]!);
@@ -491,11 +521,10 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
           }
         }
       } else {
-        // Single-payer: first name wins, take the first amount value.
-        const total = parseSignedAmount(amountParts[0] ?? '');
-        if (null === total || 0 === total) {
-          return null;
-        }
+        // Single-payer: first name wins, take the first amount value. Fall
+        // Back to `defaultAmount` when the cell is empty / unparseable.
+        const parsed = parseSignedAmount(amountParts[0] ?? '');
+        const total = null === parsed ? defaultAmount : parsed;
         const absTotal = Math.abs(total);
         rowTotal = absTotal;
 
@@ -507,7 +536,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
             break;
           }
         }
-        if (null !== payerUserId) {
+        if (null !== payerUserId && absTotal > 0) {
           payerPaid.push({ userId: payerUserId, amount: absTotal });
         }
       }
@@ -558,6 +587,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
           splitType: 'SETTLEMENT',
           amountMismatch: false,
           isIncome: false,
+          locked: true,
         };
       }
 
@@ -611,11 +641,15 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
             splitType: 'EXACT',
             amountMismatch,
             isIncome,
+            locked: true,
           };
         }
       }
 
-      // --- Fallback: EQUAL split among all group members ---
+      // --- Fallback split among all group members (EQUAL / SHARE / DROP) ---
+      if ('DROP' === defaultSplitType) {
+        return null;
+      }
       const participantCount = groupMemberIds.length;
       if (0 === participantCount) {
         return null;
@@ -634,10 +668,88 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
         paidBy,
         payers: payerPaid.length > 1 ? payerPaid : [],
         participants,
-        splitType: 'EQUAL',
+        splitType: 'SHARE' === defaultSplitType ? 'SHARE' : 'EQUAL',
         amountMismatch: false,
         isIncome,
+        locked: multiPayer,
       };
     })
     .filter((e): e is ParsedExpensePayload => null !== e);
 };
+
+/**
+ * Per-row edit override. Each field is independently optional; unset fields
+ * fall through to the parsed value at submission time. Amount is a decimal
+ * number (not BigInt) so the UI can bind it to `CurrencyInput` via its
+ * string value.
+ */
+export interface RowOverride {
+  description?: string;
+  amount?: number;
+  date?: Date;
+  paidBy?: number;
+  category?: string;
+  isIncome?: boolean;
+}
+
+/**
+ * Apply a row override on top of a parsed expense, re-running the EQUAL
+ * participant math when `amount` or `paidBy` change on an unlocked single-
+ * payer row. Locked rows (Settle Up EXACT, multi-payer, SETTLEMENT) keep
+ * their parser-built payers/participants — only scalar metadata can change.
+ */
+export const applyRowOverride = (
+  expense: ParsedExpensePayload,
+  override: RowOverride,
+  groupMemberIds: number[],
+): ParsedExpensePayload => {
+  const description = override.description ?? expense.description;
+  const amount = override.amount ?? expense.amount;
+  const date = override.date ?? expense.date;
+  const category = override.category ?? expense.category;
+  const paidBy = override.paidBy ?? expense.paidBy;
+  const isIncome = override.isIncome ?? expense.isIncome;
+
+  // Locked rows preserve their parser-built payers/participants entirely.
+  if (expense.locked || 'SETTLEMENT' === expense.splitType) {
+    return {
+      ...expense,
+      description,
+      amount,
+      date,
+      category,
+      paidBy,
+      isIncome,
+    };
+  }
+
+  // Unlocked single-payer rows recompute the EQUAL split when amount or
+  // Payer change.
+  const participantCount = groupMemberIds.length;
+  const perPerson = participantCount > 0 ? amount / participantCount : 0;
+  const participants =
+    participantCount > 0
+      ? groupMemberIds.map((userId) => ({
+          userId,
+          amount: userId === paidBy ? amount - perPerson : -perPerson,
+        }))
+      : expense.participants;
+
+  return {
+    ...expense,
+    description,
+    amount,
+    date,
+    category,
+    paidBy,
+    isIncome,
+    participants,
+  };
+};
+
+/**
+ * Filter a parsed expense list down to just the selected row indices. Used
+ * at import time so only the rows the user checked get sent to the backend.
+ */
+export const filterSelectedExpenses = <T>(expenses: T[], selectedRows: Set<number>): T[] =>
+  expenses.filter((_, index) => selectedRows.has(index));

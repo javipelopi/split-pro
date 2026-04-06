@@ -1,6 +1,9 @@
 import {
+  type ParsedExpensePayload,
+  applyRowOverride,
   autoDetectMapping,
   extractMemberNames,
+  filterSelectedExpenses,
   parseCSV,
   parseRowsToExpensePayloads,
 } from '../lib/csv';
@@ -223,5 +226,223 @@ describe('parseRowsToExpensePayloads', () => {
   it('returns an empty array when no amount column is mapped', () => {
     const csv = ['"Purpose","Date"', '"Lunch","2024-01-01"'].join('\n');
     expect(run(csv)).toEqual([]);
+  });
+
+  it('marks locked on Settle Up EXACT rows and unlocked on single-payer fallback', () => {
+    const settleUp = [
+      '"Who paid","Amount","For whom","Split amounts"',
+      '"Laura","10","Francisco;Laura","5;5"',
+    ].join('\n');
+    const [exactRow] = run(settleUp);
+    expect(exactRow!.locked).toBe(true);
+
+    const legacy = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    const { rows, mapping } = parseAndMap(legacy);
+    const [equalRow] = parseRowsToExpensePayloads({
+      rows,
+      mapping,
+      nameMapping: NAME_MAPPING,
+      groupMemberIds: GROUP_MEMBER_IDS,
+      defaultPayerId: FRANCISCO,
+      defaultDate: DEFAULT_DATE,
+      defaultCategory: 'general',
+    });
+    expect(equalRow!.locked).toBe(false);
+  });
+
+  it('marks multi-payer rows as locked even without Settle Up split columns', () => {
+    // Multi-payer with no forWhom/splitAmounts columns falls through to the
+    // Fallback EQUAL split, but the payer list came from the CSV and should
+    // Stay locked.
+    const csv = ['"Who paid","Amount","Purpose"', '"Francisco;Laura","15;15","Shared"'].join('\n');
+    const [expense] = run(csv);
+    expect(expense!.locked).toBe(true);
+    expect(expense!.splitType).toBe('EQUAL');
+    expect(expense!.payers).toHaveLength(2);
+  });
+});
+
+describe('parseRowsToExpensePayloads defaults', () => {
+  const parseWithDefaults = (
+    csvText: string,
+    defaults: {
+      defaultDescription?: string;
+      defaultAmount?: number;
+      defaultSplitType?: 'EQUAL' | 'SHARE' | 'DROP';
+    } = {},
+  ) => {
+    const { rows, mapping } = parseAndMap(csvText);
+    return parseRowsToExpensePayloads({
+      rows,
+      mapping,
+      nameMapping: NAME_MAPPING,
+      groupMemberIds: GROUP_MEMBER_IDS,
+      defaultPayerId: FRANCISCO,
+      defaultDate: DEFAULT_DATE,
+      defaultCategory: 'general',
+      ...defaults,
+    });
+  };
+
+  it('uses defaultDescription when the description cell is empty', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","30",""'].join('\n');
+    const [expense] = parseWithDefaults(csv, { defaultDescription: 'Imported' });
+    expect(expense!.description).toBe('Imported');
+  });
+
+  it('uses defaultAmount when the amount cell is empty', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","","Mystery"'].join('\n');
+    const [expense] = parseWithDefaults(csv, { defaultAmount: 42 });
+    expect(expense!.amount).toBeCloseTo(42);
+    expect(expense!.description).toBe('Mystery');
+  });
+
+  it('drops rows when default amount is 0 and cell is empty', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","","Zero"'].join('\n');
+    expect(parseWithDefaults(csv, { defaultAmount: 0 })).toEqual([]);
+  });
+
+  it('uses SHARE split type when defaultSplitType is SHARE', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    const [expense] = parseWithDefaults(csv, { defaultSplitType: 'SHARE' });
+    expect(expense!.splitType).toBe('SHARE');
+  });
+
+  it('drops fallback rows when defaultSplitType is DROP', () => {
+    // Legacy row with no forWhom/splitAmounts — must be dropped when
+    // DefaultSplitType=DROP.
+    const legacy = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    expect(parseWithDefaults(legacy, { defaultSplitType: 'DROP' })).toEqual([]);
+
+    // But a row with Settle Up per-member columns should still import.
+    const settleUp = [
+      '"Who paid","Amount","For whom","Split amounts"',
+      '"Laura","10","Francisco;Laura","5;5"',
+    ].join('\n');
+    expect(parseWithDefaults(settleUp, { defaultSplitType: 'DROP' })).toHaveLength(1);
+  });
+});
+
+describe('filterSelectedExpenses', () => {
+  const makePayload = (amount: number): ParsedExpensePayload => ({
+    description: 'e',
+    amount,
+    date: DEFAULT_DATE,
+    category: 'general',
+    paidBy: FRANCISCO,
+    payers: [],
+    participants: [
+      { userId: FRANCISCO, amount },
+      { userId: LAURA, amount: -amount },
+    ],
+    splitType: 'EQUAL',
+    amountMismatch: false,
+    isIncome: false,
+    locked: false,
+  });
+
+  it('returns only the selected rows in stable order', () => {
+    const expenses = [makePayload(1), makePayload(2), makePayload(3), makePayload(4)];
+    const result = filterSelectedExpenses(expenses, new Set([0, 2]));
+    expect(result).toHaveLength(2);
+    expect(result[0]!.amount).toBe(1);
+    expect(result[1]!.amount).toBe(3);
+  });
+
+  it('returns an empty array when nothing is selected', () => {
+    const expenses = [makePayload(1), makePayload(2)];
+    expect(filterSelectedExpenses(expenses, new Set())).toEqual([]);
+  });
+
+  it('returns all rows when everything is selected', () => {
+    const expenses = [makePayload(1), makePayload(2)];
+    expect(filterSelectedExpenses(expenses, new Set([0, 1]))).toEqual(expenses);
+  });
+});
+
+describe('applyRowOverride', () => {
+  const baseUnlocked: ParsedExpensePayload = {
+    description: 'Coffee',
+    amount: 10,
+    date: DEFAULT_DATE,
+    category: 'food',
+    paidBy: LAURA,
+    payers: [],
+    participants: [
+      { userId: LAURA, amount: 5 },
+      { userId: FRANCISCO, amount: -5 },
+    ],
+    splitType: 'EQUAL',
+    amountMismatch: false,
+    isIncome: false,
+    locked: false,
+  };
+
+  it('applies description/date/category/isIncome overrides without touching participants', () => {
+    const updated = applyRowOverride(
+      baseUnlocked,
+      { description: 'Tea', category: 'drinks', isIncome: true },
+      GROUP_MEMBER_IDS,
+    );
+    expect(updated.description).toBe('Tea');
+    expect(updated.category).toBe('drinks');
+    expect(updated.isIncome).toBe(true);
+    // Amount unchanged → participants unchanged.
+    const byId = Object.fromEntries(updated.participants.map((p) => [p.userId, p.amount]));
+    expect(byId[LAURA]).toBeCloseTo(5);
+    expect(byId[FRANCISCO]).toBeCloseTo(-5);
+  });
+
+  it('recomputes EQUAL participants when the amount changes on an unlocked row', () => {
+    const updated = applyRowOverride(baseUnlocked, { amount: 40 }, GROUP_MEMBER_IDS);
+    const byId = Object.fromEntries(updated.participants.map((p) => [p.userId, p.amount]));
+    expect(updated.amount).toBe(40);
+    // Laura (payer) +20, Francisco -20.
+    expect(byId[LAURA]).toBeCloseTo(20);
+    expect(byId[FRANCISCO]).toBeCloseTo(-20);
+  });
+
+  it('recomputes EQUAL participants when the payer changes on an unlocked row', () => {
+    const updated = applyRowOverride(baseUnlocked, { paidBy: FRANCISCO }, GROUP_MEMBER_IDS);
+    const byId = Object.fromEntries(updated.participants.map((p) => [p.userId, p.amount]));
+    expect(updated.paidBy).toBe(FRANCISCO);
+    expect(byId[FRANCISCO]).toBeCloseTo(5);
+    expect(byId[LAURA]).toBeCloseTo(-5);
+  });
+
+  it('preserves participants on locked Settle Up EXACT rows even when amount/payer change', () => {
+    const locked: ParsedExpensePayload = {
+      ...baseUnlocked,
+      splitType: 'EXACT',
+      participants: [
+        { userId: LAURA, amount: 9.67 },
+        { userId: FRANCISCO, amount: -9.67 },
+      ],
+      locked: true,
+    };
+    const updated = applyRowOverride(locked, { amount: 999, paidBy: FRANCISCO }, GROUP_MEMBER_IDS);
+    expect(updated.amount).toBe(999);
+    expect(updated.paidBy).toBe(FRANCISCO);
+    // Participants untouched.
+    expect(updated.participants).toEqual(locked.participants);
+  });
+
+  it('preserves participants on SETTLEMENT rows regardless of overrides', () => {
+    const settlement: ParsedExpensePayload = {
+      ...baseUnlocked,
+      splitType: 'SETTLEMENT',
+      participants: [
+        { userId: LAURA, amount: 100 },
+        { userId: FRANCISCO, amount: -100 },
+      ],
+      locked: true,
+    };
+    const updated = applyRowOverride(
+      settlement,
+      { description: 'Rent settlement' },
+      GROUP_MEMBER_IDS,
+    );
+    expect(updated.description).toBe('Rent settlement');
+    expect(updated.participants).toEqual(settlement.participants);
   });
 });
