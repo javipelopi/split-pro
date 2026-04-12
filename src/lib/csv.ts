@@ -339,13 +339,16 @@ export const extractMemberNames = (rows: string[][], mapping: ColumnMapping): st
 
 /**
  * Controls what happens to rows that can't produce a Settle Up EXACT split:
- *  - `EQUAL`: split among all group members. When the group has non-uniform
- *    weights, automatically produces EXACT splits with pre-calculated weighted
- *    amounts instead.
- *  - `DROP`: skip these rows entirely — import only rows that came with
+ *  - `DEFAULT`: use the group's configured split behavior — weighted EXACT
+ *    when member weights are non-uniform, even EQUAL otherwise.
+ *  - `EQUAL`: true equal split — always divides evenly regardless of group
+ *    weights (50/50 for 2, 33/33/33 for 3, etc.).
+ *  - `SPLIT`: explicitly apply group member weights, producing EXACT splits
+ *    with pre-calculated weighted amounts.
+ *  - `SKIP`: skip these rows entirely — import only rows that came with
  *    explicit `For whom` + `Split amounts` data from Settle Up.
  */
-export type FallbackSplitType = 'EQUAL' | 'DROP';
+export type FallbackSplitType = 'DEFAULT' | 'EQUAL' | 'SPLIT' | 'SKIP';
 
 /**
  * A single expense ready to be submitted. All monetary fields are decimal
@@ -457,7 +460,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
     defaultCategory,
     defaultDescription = 'Expense',
     defaultAmount = 0,
-    defaultSplitType = 'EQUAL',
+    defaultSplitType = 'DEFAULT',
     groupMemberWeights,
     validateCategory = (c) => c,
   } = options;
@@ -650,8 +653,8 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
         }
       }
 
-      // --- Fallback split among all group members (EQUAL / DROP) ---
-      if ('DROP' === defaultSplitType) {
+      // --- Fallback split among all group members ---
+      if ('SKIP' === defaultSplitType) {
         return null;
       }
       const participantCount = groupMemberIds.length;
@@ -659,17 +662,23 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
         return null;
       }
 
-      // Check if group has non-uniform weights → produce EXACT with weighted amounts.
+      // Determine split behavior:
+      //  DEFAULT → weighted EXACT when non-uniform weights, EQUAL otherwise
+      //  EQUAL   → always even split, ignore weights
+      //  SPLIT   → always apply weights (EXACT)
       const weights = groupMemberWeights
         ? groupMemberIds.map((id) => groupMemberWeights[id] ?? 1)
         : null;
       const hasNonUniformWeights =
         null !== weights && weights.length > 0 && !weights.every((w) => w === weights[0]);
+      const useWeightedSplit =
+        'SPLIT' === defaultSplitType || ('DEFAULT' === defaultSplitType && hasNonUniformWeights);
 
-      if (hasNonUniformWeights) {
-        const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      if (useWeightedSplit) {
+        const effectiveWeights = weights ?? groupMemberIds.map(() => 1);
+        const totalWeight = effectiveWeights.reduce((sum, w) => sum + w, 0);
         const participants = groupMemberIds.map((userId, i) => {
-          const owed = (weights[i]! / totalWeight) * rowTotal;
+          const owed = (effectiveWeights[i]! / totalWeight) * rowTotal;
           return {
             userId,
             amount: userId === paidBy ? rowTotal - owed : -owed,
@@ -731,20 +740,46 @@ export interface RowOverride {
    *  For EQUAL the owed amounts are recalculated equally; for EXACT
    *  they are used as-is. */
   participantOwed?: { userId: number; amount: number }[];
-  /** Override split type. Only EQUAL and EXACT are valid overrides. */
-  splitType?: 'EQUAL' | 'EXACT';
+  /** Override split type for the row. DEFAULT uses the group's configured
+   *  behavior, EQUAL forces an even split, SPLIT explicitly applies group
+   *  member weights. */
+  splitType?: 'DEFAULT' | 'EQUAL' | 'SPLIT';
 }
 
 /**
- * Apply a row override on top of a parsed expense, re-running the EQUAL
- * participant math when `amount` or `paidBy` change on an unlocked single-
- * payer row. Locked rows (Settle Up EXACT, multi-payer, SETTLEMENT) keep
- * their parser-built payers/participants — only scalar metadata can change.
+ * Resolve the backend split type (`EQUAL` | `EXACT`) from an override's
+ * `DEFAULT` / `EQUAL` / `SPLIT` value, taking group weights into account.
+ */
+const resolveOverrideSplitType = (
+  overrideType: 'DEFAULT' | 'EQUAL' | 'SPLIT',
+  memberIds: number[],
+  memberWeights?: Record<number, number>,
+): 'EQUAL' | 'EXACT' => {
+  if ('SPLIT' === overrideType) {
+    return 'EXACT';
+  }
+  if ('EQUAL' === overrideType) {
+    return 'EQUAL';
+  }
+  // DEFAULT: weighted EXACT when non-uniform, EQUAL otherwise.
+  const weights = memberWeights ? memberIds.map((id) => memberWeights[id] ?? 1) : null;
+  const hasNonUniform =
+    null !== weights && weights.length > 0 && !weights.every((w) => w === weights[0]);
+  return hasNonUniform ? 'EXACT' : 'EQUAL';
+};
+
+/**
+ * Apply a row override on top of a parsed expense, re-running the
+ * participant math when `amount`, `paidBy`, or `splitType` change on an
+ * unlocked single-payer row. Locked rows (Settle Up EXACT, multi-payer,
+ * SETTLEMENT) keep their parser-built payers/participants — only scalar
+ * metadata can change.
  */
 export const applyRowOverride = (
   expense: ParsedExpensePayload,
   override: RowOverride,
   groupMemberIds: number[],
+  groupMemberWeights?: Record<number, number>,
 ): ParsedExpensePayload => {
   const description = override.description ?? expense.description;
   const amount = override.amount ?? expense.amount;
@@ -752,16 +787,30 @@ export const applyRowOverride = (
   const category = override.category ?? expense.category;
   const paidBy = override.paidBy ?? expense.paidBy;
   const isIncome = override.isIncome ?? expense.isIncome;
-  const splitType = override.splitType ?? expense.splitType;
+  const overrideSplitType = override.splitType;
 
   // Explicit participant overrides — convert owed amounts to net positions.
   if (override.participantOwed) {
     let owed = override.participantOwed;
+    const effectiveType = overrideSplitType
+      ? resolveOverrideSplitType(overrideSplitType, groupMemberIds, groupMemberWeights)
+      : (expense.splitType as 'EQUAL' | 'EXACT');
 
-    // For EQUAL, recalculate owed amounts equally among participants.
-    if ('EQUAL' === splitType && owed.length > 0) {
+    if ('EQUAL' === effectiveType && owed.length > 0) {
       const perPerson = amount / owed.length;
       owed = owed.map((p) => ({ userId: p.userId, amount: perPerson }));
+    } else if (
+      'EXACT' === effectiveType &&
+      ('SPLIT' === overrideSplitType || 'DEFAULT' === overrideSplitType) &&
+      owed.length > 0
+    ) {
+      // Recalculate with weights among the selected participants.
+      const weights = owed.map((p) => groupMemberWeights?.[p.userId] ?? 1);
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      owed = owed.map((p, i) => ({
+        userId: p.userId,
+        amount: (weights[i]! / totalWeight) * amount,
+      }));
     }
 
     const participants = owed.map(({ userId, amount: owedAmt }) => ({
@@ -779,7 +828,7 @@ export const applyRowOverride = (
       isIncome,
       participants,
       payers: [],
-      splitType: splitType,
+      splitType: effectiveType,
     };
   }
 
@@ -796,9 +845,65 @@ export const applyRowOverride = (
     };
   }
 
-  // Unlocked EXACT rows preserve their per-person amounts (e.g. from weighted
-  // Splits). Only scalar metadata can change without explicit participantOwed.
-  if ('EXACT' === splitType) {
+  // Unlocked rows with an explicit splitType override: recompute participants.
+  if (overrideSplitType) {
+    const effectiveType = resolveOverrideSplitType(
+      overrideSplitType,
+      groupMemberIds,
+      groupMemberWeights,
+    );
+
+    if ('EXACT' === effectiveType) {
+      const weights = groupMemberWeights
+        ? groupMemberIds.map((id) => groupMemberWeights[id] ?? 1)
+        : groupMemberIds.map(() => 1);
+      const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+      const participants = groupMemberIds.map((userId, i) => {
+        const owed = (weights[i]! / totalWeight) * amount;
+        return { userId, amount: userId === paidBy ? amount - owed : -owed };
+      });
+      return {
+        ...expense,
+        description,
+        amount,
+        date,
+        category,
+        paidBy,
+        isIncome,
+        participants,
+        splitType: 'EXACT',
+        payers: [],
+      };
+    }
+
+    // EQUAL
+    const participantCount = groupMemberIds.length;
+    const perPerson = participantCount > 0 ? amount / participantCount : 0;
+    const participants =
+      participantCount > 0
+        ? groupMemberIds.map((userId) => ({
+            userId,
+            amount: userId === paidBy ? amount - perPerson : -perPerson,
+          }))
+        : expense.participants;
+    return {
+      ...expense,
+      description,
+      amount,
+      date,
+      category,
+      paidBy,
+      isIncome,
+      participants,
+      splitType: 'EQUAL',
+      payers: [],
+    };
+  }
+
+  // No splitType override: unlocked EXACT rows preserve their per-person
+  // Amounts (e.g. from weighted splits). Only scalar metadata can change
+  // Without explicit participantOwed.
+  if ('EXACT' === expense.splitType) {
     return {
       ...expense,
       description,

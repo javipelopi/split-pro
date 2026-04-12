@@ -268,7 +268,7 @@ describe('parseRowsToExpensePayloads defaults', () => {
     defaults: {
       defaultDescription?: string;
       defaultAmount?: number;
-      defaultSplitType?: 'EQUAL' | 'DROP';
+      defaultSplitType?: 'DEFAULT' | 'EQUAL' | 'SPLIT' | 'SKIP';
       groupMemberWeights?: Record<number, number>;
     } = {},
   ) => {
@@ -327,18 +327,54 @@ describe('parseRowsToExpensePayloads defaults', () => {
     expect(byId[LAURA]).toBeCloseTo(15);
   });
 
-  it('drops fallback rows when defaultSplitType is DROP', () => {
-    // Legacy row with no forWhom/splitAmounts — must be dropped when
-    // DefaultSplitType=DROP.
+  it('drops fallback rows when defaultSplitType is SKIP', () => {
+    // Legacy row with no forWhom/splitAmounts — must be skipped when
+    // DefaultSplitType=SKIP.
     const legacy = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
-    expect(parseWithDefaults(legacy, { defaultSplitType: 'DROP' })).toEqual([]);
+    expect(parseWithDefaults(legacy, { defaultSplitType: 'SKIP' })).toEqual([]);
 
     // But a row with Settle Up per-member columns should still import.
     const settleUp = [
       '"Who paid","Amount","For whom","Split amounts"',
       '"Laura","10","Francisco;Laura","5;5"',
     ].join('\n');
-    expect(parseWithDefaults(settleUp, { defaultSplitType: 'DROP' })).toHaveLength(1);
+    expect(parseWithDefaults(settleUp, { defaultSplitType: 'SKIP' })).toHaveLength(1);
+  });
+
+  it('forces true equal split when defaultSplitType is EQUAL (ignores weights)', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    // Even with non-uniform weights, EQUAL forces even split.
+    const [expense] = parseWithDefaults(csv, {
+      defaultSplitType: 'EQUAL',
+      groupMemberWeights: { [FRANCISCO]: 1, [LAURA]: 2 },
+    });
+    expect(expense!.splitType).toBe('EQUAL');
+    const byId = Object.fromEntries(expense!.participants.map((p) => [p.userId, p.amount]));
+    expect(byId[FRANCISCO]).toBeCloseTo(-15);
+    expect(byId[LAURA]).toBeCloseTo(15);
+  });
+
+  it('forces weighted EXACT split when defaultSplitType is SPLIT', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    const [expense] = parseWithDefaults(csv, {
+      defaultSplitType: 'SPLIT',
+      groupMemberWeights: { [FRANCISCO]: 1, [LAURA]: 2 },
+    });
+    expect(expense!.splitType).toBe('EXACT');
+    const byId = Object.fromEntries(expense!.participants.map((p) => [p.userId, p.amount]));
+    // Francisco weight=1, Laura weight=2 → total=3
+    expect(byId[FRANCISCO]).toBeCloseTo(-10); // Owed 10
+    expect(byId[LAURA]).toBeCloseTo(10); // Paid 30, owed 20 → +10
+  });
+
+  it('SPLIT produces EXACT even with uniform weights', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    const [expense] = parseWithDefaults(csv, {
+      defaultSplitType: 'SPLIT',
+      groupMemberWeights: { [FRANCISCO]: 1, [LAURA]: 1 },
+    });
+    // Even though weights are uniform, SPLIT always produces EXACT.
+    expect(expense!.splitType).toBe('EXACT');
   });
 });
 

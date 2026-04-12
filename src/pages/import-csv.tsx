@@ -90,6 +90,7 @@ interface PreviewRowProps {
   expense: ParsedExpensePayload;
   parsed: ParsedExpensePayload;
   groupMembers: { id: number; name: string | null; email: string | null }[];
+  groupMemberWeights: Record<number, number>;
   groupCurrency: string;
   isSelected: boolean;
   isExpanded: boolean;
@@ -110,6 +111,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   expense,
   parsed,
   groupMembers,
+  groupMemberWeights,
   groupCurrency,
   isSelected,
   isExpanded,
@@ -184,10 +186,12 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           userId: p.userId,
           amount: p.userId === expense.paidBy ? expense.amount - p.amount : -p.amount,
         }));
+        const overrideSplitType: 'DEFAULT' | 'EQUAL' | 'SPLIT' =
+          'EXACT' === expense.splitType ? 'SPLIT' : 'EQUAL';
         onUpdateOverride(index, {
           paidBy: newPaidBy,
           participantOwed: currentOwed,
-          splitType: expense.splitType as 'EQUAL' | 'EXACT',
+          splitType: overrideSplitType,
         });
       } else {
         onUpdateOverride(index, { paidBy: newPaidBy });
@@ -228,7 +232,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
 
   const handleSplitTypeChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const newType = e.target.value as 'EQUAL' | 'EXACT';
+      const newType = e.target.value as 'DEFAULT' | 'EQUAL' | 'SPLIT';
       const currentMemberIds = expense.participants.map((p) => p.userId);
       const memberIds =
         currentMemberIds.length > 0 ? currentMemberIds : groupMembers.map((m) => m.id);
@@ -237,14 +241,12 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
         splitType: newType,
         participantOwed: memberIds.map((userId) => ({
           userId,
-          amount:
-            'EQUAL' === newType
-              ? expense.amount / memberIds.length
-              : (participantOwed.find((p) => p.userId === userId)?.amount ?? 0),
+          // Amount placeholder — applyRowOverride will recalculate based on splitType.
+          amount: expense.amount / memberIds.length,
         })),
       });
     },
-    [index, expense, groupMembers, participantOwed, onUpdateOverride],
+    [index, expense, groupMembers, onUpdateOverride],
   );
 
   const handleParticipantToggle = useCallback(
@@ -253,9 +255,11 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
       const newOwed = isParticipating
         ? participantOwed.filter((p) => p.userId !== userId)
         : [...participantOwed, { userId, amount: 0 }];
-      const splitType = expense.splitType as 'EQUAL' | 'EXACT';
+      // Preserve the current override splitType, or infer from expense.
+      const currentSplitType: 'DEFAULT' | 'EQUAL' | 'SPLIT' =
+        'EXACT' === expense.splitType ? 'SPLIT' : 'EQUAL';
       setExactAmountStrs({});
-      onUpdateOverride(index, { splitType, participantOwed: newOwed });
+      onUpdateOverride(index, { splitType: currentSplitType, participantOwed: newOwed });
     },
     [index, expense.splitType, participantIds, participantOwed, onUpdateOverride],
   );
@@ -265,7 +269,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
       const newOwed = participantOwed.map((p) =>
         p.userId === userId ? { userId, amount: newAmount } : p,
       );
-      onUpdateOverride(index, { splitType: 'EXACT', participantOwed: newOwed });
+      onUpdateOverride(index, { splitType: 'SPLIT', participantOwed: newOwed });
     },
     [index, participantOwed, onUpdateOverride],
   );
@@ -359,16 +363,29 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
                   {t('import_csv.steps.preview.edit.split_type', { defaultValue: 'Split type' })}
                 </Label>
                 <NativeSelect
-                  value={expense.splitType}
+                  value={
+                    'EXACT' === expense.splitType
+                      ? 'SPLIT'
+                      : 'EQUAL' === expense.splitType
+                        ? 'EQUAL'
+                        : 'DEFAULT'
+                  }
                   onChange={handleSplitTypeChange}
                   className="w-full"
                 >
-                  <NativeSelectOption value="EQUAL">
-                    {t('import_csv.steps.preview.edit.split_equal', { defaultValue: 'Equal' })}
+                  <NativeSelectOption value="DEFAULT">
+                    {t('import_csv.steps.preview.edit.split_default', {
+                      defaultValue: 'Default (group settings)',
+                    })}
                   </NativeSelectOption>
-                  <NativeSelectOption value="EXACT">
-                    {t('import_csv.steps.preview.edit.split_exact', {
-                      defaultValue: 'Exact amounts',
+                  <NativeSelectOption value="EQUAL">
+                    {t('import_csv.steps.preview.edit.split_equal', {
+                      defaultValue: 'Equal (even split)',
+                    })}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="SPLIT">
+                    {t('import_csv.steps.preview.edit.split_split', {
+                      defaultValue: 'Split (member weights)',
                     })}
                   </NativeSelectOption>
                 </NativeSelect>
@@ -508,7 +525,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
   const [defaultDescription, setDefaultDescription] = useState<string>('Expense');
   const [defaultAmount, setDefaultAmount] = useState<number>(0);
   const [defaultAmountStr, setDefaultAmountStr] = useState<string>('');
-  const [defaultSplitType, setDefaultSplitType] = useState<FallbackSplitType>('EQUAL');
+  const [defaultSplitType, setDefaultSplitType] = useState<FallbackSplitType>('DEFAULT');
 
   // Per-row state used by the preview step. All three reset whenever the
   // Parse output changes (new file, remapping, etc.) because row identity
@@ -602,9 +619,11 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     () =>
       parsedExpenses.map((expense, index) => {
         const override = rowOverrides[index];
-        return override ? applyRowOverride(expense, override, groupMemberIds) : expense;
+        return override
+          ? applyRowOverride(expense, override, groupMemberIds, groupMemberWeights)
+          : expense;
       }),
-    [parsedExpenses, rowOverrides, groupMemberIds],
+    [parsedExpenses, rowOverrides, groupMemberIds, groupMemberWeights],
   );
 
   // Duplicate detection for CSV import
@@ -820,8 +839,8 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
   );
 
   const handleDefaultSplitTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    if ('EQUAL' === value || 'DROP' === value) {
+    const value = e.target.value as FallbackSplitType;
+    if ('DEFAULT' === value || 'EQUAL' === value || 'SPLIT' === value || 'SKIP' === value) {
       setDefaultSplitType(value);
     }
   }, []);
@@ -1170,11 +1189,25 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                   onChange={handleDefaultSplitTypeChange}
                   className="w-full"
                 >
-                  <NativeSelectOption value="EQUAL">
-                    {t('import_csv.steps.defaults.split_type_equal')}
+                  <NativeSelectOption value="DEFAULT">
+                    {t('import_csv.steps.defaults.split_type_default', {
+                      defaultValue: 'Default (use group settings)',
+                    })}
                   </NativeSelectOption>
-                  <NativeSelectOption value="DROP">
-                    {t('import_csv.steps.defaults.split_type_drop')}
+                  <NativeSelectOption value="EQUAL">
+                    {t('import_csv.steps.defaults.split_type_equal', {
+                      defaultValue: 'Equal (even split)',
+                    })}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="SPLIT">
+                    {t('import_csv.steps.defaults.split_type_split', {
+                      defaultValue: 'Split (use member weights)',
+                    })}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="SKIP">
+                    {t('import_csv.steps.defaults.split_type_skip', {
+                      defaultValue: 'Skip (do not import)',
+                    })}
                   </NativeSelectOption>
                 </NativeSelect>
               </div>
@@ -1311,6 +1344,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                     expense={expense}
                     parsed={parsedExpenses[i]!}
                     groupMembers={groupMembers}
+                    groupMemberWeights={groupMemberWeights}
                     groupCurrency={groupCurrency}
                     isSelected={selectedRows.has(i)}
                     isExpanded={expandedRows.has(i)}
