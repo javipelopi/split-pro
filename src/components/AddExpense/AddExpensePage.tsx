@@ -2,11 +2,12 @@ import { HeartHandshakeIcon, Landmark, RefreshCcwDot, X } from 'lucide-react';
 import { useTranslation } from 'next-i18next';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 
 import { type CurrencyCode } from '~/lib/currency';
 import { useAddExpenseStore } from '~/store/addStore';
 import { api } from '~/utils/api';
+import { DuplicateWarning } from './DuplicateWarning';
 
 import { toast } from 'sonner';
 import { useTranslationWithUtils } from '~/hooks/useTranslationWithUtils';
@@ -73,6 +74,28 @@ export const AddOrEditExpensePage: React.FC<{
 
   const addExpenseMutation = api.expense.addOrEditExpense.useMutation();
   const updateProfile = api.user.updateUserDetail.useMutation();
+
+  // Duplicate detection: debounced query when amount, date, group, and description are set
+  const duplicateCheckEnabled =
+    !expenseId && Boolean(amount) && amount !== 0n && '' !== description && Boolean(paidBy);
+
+  const duplicatesQuery = api.expense.findDuplicates.useQuery(
+    {
+      name: description,
+      amount: amount,
+      currency: currency,
+      expenseDate: expenseDate,
+      paidBy: paidBy?.id ?? 0,
+      groupId: group?.id ?? null,
+    },
+    {
+      enabled: duplicateCheckEnabled,
+      staleTime: 10_000,
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  const duplicates = useMemo(() => duplicatesQuery.data ?? [], [duplicatesQuery.data]);
 
   const onCurrencyPick = useCallback(
     (newCurrency: CurrencyCode) => {
@@ -351,6 +374,10 @@ export const AddOrEditExpensePage: React.FC<{
                     </Button>
                   </SplitExpenseForm>
                 </div>
+
+                {duplicates.length > 0 && (
+                  <DuplicateWarning duplicates={duplicates} groupId={group?.id ?? null} />
+                )}
 
                 <div className="mt-4 flex items-start justify-between sm:mt-10">
                   <div className="flex items-center gap-1">

@@ -15,6 +15,11 @@ import {
 import { createExpense, deleteExpense, editExpense } from '../services/splitService';
 import { getProcessedBalances } from '../services/balanceService';
 import { currencyRateProvider } from '../services/currencyRateService';
+import {
+  findDuplicatesBatch,
+  findDuplicatesForExpense,
+  findDuplicatesInGroup,
+} from '../services/duplicateService';
 import { type CurrencyCode, isCurrencyCode } from '~/lib/currency';
 import { SplitType } from '@prisma/client';
 import { DEFAULT_CATEGORY } from '~/lib/category';
@@ -598,6 +603,73 @@ export const expenseRouter = createTRPCRouter({
 
     return { rate };
   }),
+
+  findDuplicates: protectedProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        amount: z.bigint(),
+        currency: z.string(),
+        expenseDate: z.date(),
+        paidBy: z.number(),
+        groupId: z.number().nullable(),
+        excludeId: z.string().optional(),
+      }),
+    )
+    .query(async ({ input }) => findDuplicatesForExpense(input)),
+
+  findGroupDuplicates: groupProcedure
+    .input(z.object({ groupId: z.number() }))
+    .query(async ({ input, ctx }) =>
+      findDuplicatesInGroup({
+        groupId: input.groupId,
+        userId: ctx.session.user.id,
+      }),
+    ),
+
+  findDuplicatesBatch: protectedProcedure
+    .input(
+      z.object({
+        candidates: z.array(
+          z.object({
+            name: z.string(),
+            amount: z.number(),
+            currency: z.string(),
+            expenseDate: z.date(),
+            paidBy: z.number(),
+          }),
+        ),
+        groupId: z.number(),
+      }),
+    )
+    .query(async ({ input }) => findDuplicatesBatch(input)),
+
+  dismissDuplicate: protectedProcedure
+    .input(
+      z.object({
+        expenseIdA: z.string(),
+        expenseIdB: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Normalize order so (A,B) and (B,A) are the same record
+      const [idA, idB] =
+        input.expenseIdA < input.expenseIdB
+          ? [input.expenseIdA, input.expenseIdB]
+          : [input.expenseIdB, input.expenseIdA];
+
+      await db.duplicateDismissal.upsert({
+        where: {
+          expenseIdA_expenseIdB: { expenseIdA: idA, expenseIdB: idB },
+        },
+        create: {
+          expenseIdA: idA,
+          expenseIdB: idB,
+          dismissedBy: ctx.session.user.id,
+        },
+        update: {},
+      });
+    }),
 
   getBatchCurrencyRates: protectedProcedure
     .input(getBatchCurrencyRatesSchema)

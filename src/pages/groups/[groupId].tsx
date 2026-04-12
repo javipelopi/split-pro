@@ -23,6 +23,7 @@ import { useRouter } from 'next/router';
 import { Fragment, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { BalanceList } from '~/components/Expense/BalanceList';
+import { DuplicatesList } from '~/components/group/DuplicatesList';
 import { ExpenseList } from '~/components/Expense/ExpenseList';
 import { CurrencyPicker } from '~/components/AddExpense/CurrencyPicker';
 import { parseCurrencyCode } from '~/lib/currency';
@@ -544,9 +545,12 @@ const BalancePage: NextPageWithUser = ({ user }) => {
               </Button>
             </div>
             <Tabs defaultValue="expenses">
-              <TabsList className="mx-auto grid w-full max-w-96 grid-cols-2">
+              <TabsList className="mx-auto grid w-full max-w-96 grid-cols-3">
                 <TabsTrigger value="expenses">{t('group_details.tabs.expenses')}</TabsTrigger>
                 <TabsTrigger value="balances">{t('group_details.tabs.balances')}</TabsTrigger>
+                <TabsTrigger value="duplicates">
+                  {t('group_details.tabs.duplicates', { defaultValue: 'Duplicates' })}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="expenses">
                 <ExpenseList
@@ -562,6 +566,9 @@ const BalancePage: NextPageWithUser = ({ user }) => {
                   groupBalances={groupDetailQuery.data?.groupBalances}
                   users={groupDetailQuery.data?.groupUsers.map((gu) => gu.user)}
                 />
+              </TabsContent>
+              <TabsContent value="duplicates">
+                <DuplicatesList groupId={groupId} userId={user.id} />
               </TabsContent>
             </Tabs>
           </div>

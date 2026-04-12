@@ -95,6 +95,7 @@ interface PreviewRowProps {
   isExpanded: boolean;
   isLast: boolean;
   hasOverride: boolean;
+  isDuplicate: boolean;
   rowAmountStr: string | undefined;
   onToggleSelection: (index: number) => void;
   onToggleExpanded: (index: number) => void;
@@ -114,6 +115,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   isExpanded,
   isLast,
   hasOverride,
+  isDuplicate,
   rowAmountStr,
   onToggleSelection,
   onToggleExpanded,
@@ -212,6 +214,9 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
               ? ` · ${t('import_csv.steps.preview.locked_label')}`
               : ''}
             {hasOverride ? ` · ${t('import_csv.steps.preview.edited_label')}` : ''}
+            {isDuplicate
+              ? ` · ${t('import_csv.steps.preview.duplicate_label', { defaultValue: 'Potential duplicate' })}`
+              : ''}
           </span>
         </button>
         <span
@@ -435,6 +440,61 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
       }),
     [parsedExpenses, rowOverrides, groupMemberIds],
   );
+
+  // Duplicate detection for CSV import
+  const duplicateBatchInput = useMemo(() => {
+    if (null === selectedGroupId || 0 === effectiveExpenses.length) {
+      return null;
+    }
+    return {
+      candidates: effectiveExpenses.map((e) => ({
+        name: e.description,
+        amount: e.amount,
+        currency: groupCurrency,
+        expenseDate: e.date,
+        paidBy: e.paidBy,
+      })),
+      groupId: selectedGroupId,
+    };
+  }, [effectiveExpenses, selectedGroupId, groupCurrency]);
+
+  const duplicateBatchQuery = api.expense.findDuplicatesBatch.useQuery(duplicateBatchInput!, {
+    enabled: null !== duplicateBatchInput && 'preview' === currentStep,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const duplicateRowIndices = useMemo(() => {
+    const set = new Set<number>();
+    if (!duplicateBatchQuery.data) {
+      return set;
+    }
+    duplicateBatchQuery.data.existingMatches.forEach((matches, i) => {
+      if (matches.length > 0) {
+        set.add(i);
+      }
+    });
+    duplicateBatchQuery.data.intraCsvPairs.forEach((pair) => {
+      set.add(pair.indexA);
+      set.add(pair.indexB);
+    });
+    return set;
+  }, [duplicateBatchQuery.data]);
+
+  const duplicateCount = useMemo(
+    () => [...duplicateRowIndices].filter((i) => selectedRows.has(i)).length,
+    [duplicateRowIndices, selectedRows],
+  );
+
+  const skipAllDuplicates = useCallback(() => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev);
+      for (const i of duplicateRowIndices) {
+        next.delete(i);
+      }
+      return next;
+    });
+  }, [duplicateRowIndices]);
 
   const mismatchCount = useMemo(
     () => effectiveExpenses.filter((e, i) => e.amountMismatch && selectedRows.has(i)).length,
@@ -1037,6 +1097,31 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 </div>
               )}
 
+              {duplicateCount > 0 && (
+                <div className="flex items-start gap-2 rounded border border-orange-500/40 bg-orange-500/10 p-3 text-sm text-orange-700 dark:text-orange-400">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="flex flex-1 flex-col gap-1">
+                    <span>
+                      {t('import_csv.steps.preview.duplicate_warning', {
+                        count: duplicateCount,
+                        defaultValue: `${duplicateCount} row${duplicateCount > 1 ? 's' : ''} may be duplicate${duplicateCount > 1 ? 's' : ''} of existing expenses`,
+                      })}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-fit border-orange-500/40 text-orange-700 hover:bg-orange-500/10 dark:text-orange-400"
+                      onClick={skipAllDuplicates}
+                    >
+                      {t('import_csv.steps.preview.skip_duplicates', {
+                        defaultValue: 'Skip all potential duplicates',
+                      })}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Select all / none header */}
               {parsedExpenses.length > 0 && (
                 <div className="flex items-center justify-between border-b pb-2">
@@ -1069,6 +1154,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                     isExpanded={expandedRows.has(i)}
                     isLast={i === effectiveExpenses.length - 1}
                     hasOverride={undefined !== rowOverrides[i]}
+                    isDuplicate={duplicateRowIndices.has(i)}
                     rowAmountStr={rowAmountStrs[i]}
                     onToggleSelection={toggleRowSelection}
                     onToggleExpanded={toggleRowExpanded}
