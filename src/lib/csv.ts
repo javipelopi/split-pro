@@ -286,6 +286,12 @@ export interface ColumnMapping {
    * mapped, used in preference to `amount` for income/refund rows.
    */
   credit: number | null;
+  /**
+   * "Currency" — per-row currency code (e.g. "USD", "EUR"). When mapped,
+   * each row can specify its own currency. Useful for mixed-currency CSVs
+   * combined with single-currency mode (auto-converted on the backend).
+   */
+  currency: number | null;
 }
 
 export const MAPPABLE_FIELDS = [
@@ -299,6 +305,7 @@ export const MAPPABLE_FIELDS = [
   'forWhom',
   'splitAmounts',
   'type',
+  'currency',
 ] as const;
 export type MappableField = (typeof MAPPABLE_FIELDS)[number];
 
@@ -314,6 +321,7 @@ const HEADER_HINTS: Record<MappableField, RegExp> = {
   forWhom: /^(for\s*whom|participants?|members?|split\s*for|beneficiar(?:y|ies))$/i,
   splitAmounts: /^(split\s*amounts?|owed\s*amounts?|shares?)$/i,
   type: /^(type|kind)$/i,
+  currency: /^(currency|curr|währung|devise|moneda)$/i,
 };
 
 export const autoDetectMapping = (headers: string[]): ColumnMapping => {
@@ -328,6 +336,7 @@ export const autoDetectMapping = (headers: string[]): ColumnMapping => {
     forWhom: null,
     splitAmounts: null,
     type: null,
+    currency: null,
   };
 
   const used = new Set<number>();
@@ -420,6 +429,9 @@ export interface ParsedExpensePayload {
   amount: number;
   date: Date;
   category: string;
+  /** Per-row currency code. When set, overrides the group default currency
+   *  for this row. In single-currency mode the backend auto-converts. */
+  currency?: string;
   /** Primary payer used for the `paidBy` backend field. */
   paidBy: number;
   /** Per-payer contributions. Empty for single-payer rows — the backend
@@ -555,6 +567,11 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
           : defaultCategory;
       const category = validateCategory('' === rawCategory ? defaultCategory : rawCategory);
 
+      // --- Currency (optional) ---
+      const currencyRaw =
+        null !== mapping.currency ? (row[mapping.currency]?.trim().toUpperCase() ?? '') : '';
+      const rowCurrency = '' !== currencyRaw ? currencyRaw : undefined;
+
       // --- Type (optional) ---
       const typeRaw = null !== mapping.type ? (row[mapping.type]?.trim().toLowerCase() ?? '') : '';
       const isIncome = 'income' === typeRaw;
@@ -650,6 +667,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
           amount: rowTotal,
           date,
           category,
+          currency: rowCurrency,
           paidBy,
           payers: [],
           participants: [
@@ -707,6 +725,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
             amount: rowTotal,
             date,
             category,
+            currency: rowCurrency,
             paidBy,
             payers,
             participants,
@@ -754,6 +773,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
           amount: rowTotal,
           date,
           category,
+          currency: rowCurrency,
           paidBy,
           payers: payerPaid.length > 1 ? payerPaid : [],
           participants,
@@ -775,6 +795,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
         amount: rowTotal,
         date,
         category,
+        currency: rowCurrency,
         paidBy,
         payers: payerPaid.length > 1 ? payerPaid : [],
         participants,

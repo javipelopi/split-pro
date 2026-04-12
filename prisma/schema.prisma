@@ -95,20 +95,21 @@ model Balance {
 }
 
 model Group {
-  id               Int           @id @default(autoincrement())
-  publicId         String        @unique
-  name             String
-  userId           Int
-  defaultCurrency  String        @default("USD")
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  splitwiseGroupId String?       @unique
-  simplifyDebts    Boolean       @default(false)
-  archivedAt       DateTime?
-  expenses         Expense[]
-  createdBy        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  groupUsers       GroupUser[]
-  groupBalances    BalanceView[]
+  id                 Int           @id @default(autoincrement())
+  publicId           String        @unique
+  name               String
+  userId             Int
+  defaultCurrency    String        @default("USD")
+  singleCurrencyMode Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  splitwiseGroupId   String?       @unique
+  simplifyDebts      Boolean       @default(false)
+  archivedAt         DateTime?
+  expenses           Expense[]
+  createdBy          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupUsers         GroupUser[]
+  groupBalances      BalanceView[]
 
   @@schema("public")
 }
@@ -151,6 +152,8 @@ model Expense {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   currency            String
+  originalAmount      BigInt?
+  originalCurrency    String?
   fileKey             String?
   groupId             Int?
   deletedAt           DateTime?

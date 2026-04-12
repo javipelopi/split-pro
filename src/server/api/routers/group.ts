@@ -285,6 +285,7 @@ export const groupRouter = createTRPCRouter({
         name: z.string().min(1),
         defaultCurrency: z.string().optional(),
         simplifyDebts: z.boolean().optional(),
+        singleCurrencyMode: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -310,6 +311,9 @@ export const groupRouter = createTRPCRouter({
           name: input.name,
           ...(input.defaultCurrency !== undefined && { defaultCurrency: input.defaultCurrency }),
           ...(input.simplifyDebts !== undefined && { simplifyDebts: input.simplifyDebts }),
+          ...(input.singleCurrencyMode !== undefined && {
+            singleCurrencyMode: input.singleCurrencyMode,
+          }),
         },
       });
 

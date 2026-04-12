@@ -70,6 +70,14 @@ const ExpenseDetails: React.FC<ExpenseDetailsProps> = ({ user, expense }) => {
               {expense.transactionId && <Landmark className="text-positive h-4 w-4" />}
             </div>
             <p className="text-2xl font-semibold">{toUIString(expense.amount)}</p>
+            {expense.originalAmount && expense.originalCurrency ? (
+              <p className="text-sm text-gray-500">
+                {t('ui.originally', { defaultValue: 'Originally' })}{' '}
+                {getCurrencyHelpersCached(expense.originalCurrency).toUIString(
+                  expense.originalAmount,
+                )}
+              </p>
+            ) : null}
             {!isSameDay(expense.expenseDate, expense.createdAt) ? (
               <p className="text-sm text-gray-500">
                 {toUIDate(expense.expenseDate, { year: true })}

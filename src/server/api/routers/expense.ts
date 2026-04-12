@@ -24,7 +24,6 @@ import { type CurrencyCode, isCurrencyCode } from '~/lib/currency';
 import { SplitType } from '@prisma/client';
 import { DEFAULT_CATEGORY } from '~/lib/category';
 import { getUserMap } from './user';
-import { FriendBalance } from '~/components/Friend/FriendBalance';
 
 export const expenseRouter = createTRPCRouter({
   getCumulatedBalances: protectedProcedure.query(async ({ ctx }) => {
@@ -120,13 +119,50 @@ export const expenseRouter = createTRPCRouter({
         if (input.groupId !== null) {
           const group = await db.group.findUnique({
             where: { id: input.groupId },
-            select: { archivedAt: true },
+            select: { archivedAt: true, singleCurrencyMode: true, defaultCurrency: true },
           });
           if (!group) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Group not found' });
           }
           if (group.archivedAt) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Group is archived' });
+          }
+
+          // Auto-convert to group currency when single-currency mode is enabled
+          if (
+            group.singleCurrencyMode &&
+            input.currency !== group.defaultCurrency &&
+            isCurrencyCode(input.currency) &&
+            isCurrencyCode(group.defaultCurrency)
+          ) {
+            const rate = await currencyRateProvider.getCurrencyRate(
+              input.currency,
+              group.defaultCurrency,
+              input.expenseDate,
+            );
+
+            const convert = (amount: bigint) =>
+              currencyConversion({
+                from: input.currency as CurrencyCode,
+                to: group.defaultCurrency as CurrencyCode,
+                amount,
+                rate,
+              });
+
+            input.originalAmount = input.amount;
+            input.originalCurrency = input.currency;
+            input.amount = convert(input.amount);
+            input.currency = group.defaultCurrency;
+            input.participants = input.participants.map((p) => ({
+              ...p,
+              amount: convert(p.amount),
+            }));
+            if (input.payers) {
+              input.payers = input.payers.map((p) => ({
+                ...p,
+                amount: convert(p.amount),
+              }));
+            }
           }
         }
 

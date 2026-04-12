@@ -56,6 +56,7 @@ const FIELD_LABELS: Record<MappableField, string> = {
   forWhom: 'For whom',
   splitAmounts: 'Split amounts',
   type: 'Type',
+  currency: 'Currency',
 };
 
 const validateCategory = (category: string): string => {
@@ -517,6 +518,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     forWhom: null,
     splitAmounts: null,
     type: null,
+    currency: null,
   });
 
   // Maps CSV member names (from `payer` and `forWhom` columns) → group userId.
@@ -857,8 +859,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
       return;
     }
 
-    const { toSafeBigInt } = getCurrencyHelpers({ currency: groupCurrency });
-
     const splitTypeMap = {
       EQUAL: SplitType.EQUAL,
       EXACT: SplitType.EXACT,
@@ -868,19 +868,21 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     const selected = filterSelectedExpenses(effectiveExpenses, selectedRows);
 
     const expenses = selected.map((expense) => {
+      const rowCurrency = expense.currency ?? groupCurrency;
+      const { toSafeBigInt: toRowBigInt } = getCurrencyHelpers({ currency: rowCurrency });
       const sign = expense.isIncome ? -1n : 1n;
-      const amountBigInt = toSafeBigInt(expense.amount) * sign;
+      const amountBigInt = toRowBigInt(expense.amount) * sign;
 
       const participants = expense.participants.map((p) => ({
         userId: p.userId,
-        amount: toSafeBigInt(p.amount) * sign,
+        amount: toRowBigInt(p.amount) * sign,
       }));
 
       const payers =
         expense.payers.length > 1
           ? expense.payers.map((p) => ({
               userId: p.userId,
-              amount: toSafeBigInt(p.amount) * sign,
+              amount: toRowBigInt(p.amount) * sign,
             }))
           : undefined;
 
@@ -891,7 +893,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
         amount: amountBigInt,
         groupId: selectedGroupId,
         splitType: splitTypeMap[expense.splitType],
-        currency: groupCurrency,
+        currency: rowCurrency,
         participants,
         payers,
         expenseDate: expense.date,

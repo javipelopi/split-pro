@@ -383,6 +383,39 @@ const BalancePage: NextPageWithUser = ({ user }) => {
                         }}
                       />
                     </Label>
+                    {isAdmin && (
+                      <Label className="flex cursor-pointer items-center justify-between">
+                        <p className="flex items-center">
+                          <ArrowLeftRight className="mr-2 size-4" />{' '}
+                          {t('group_details.group_info.single_currency_mode', {
+                            defaultValue: `Track all in ${groupDetailQuery.data?.defaultCurrency ?? 'USD'}`,
+                          })}
+                        </p>
+                        <Switch
+                          id="single-currency-mode"
+                          disabled={isArchived}
+                          checked={groupDetailQuery.data?.singleCurrencyMode ?? false}
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await updateGroupDetailsMutation.mutateAsync({
+                                groupId,
+                                name: groupDetailQuery.data?.name ?? '',
+                                singleCurrencyMode: checked,
+                              });
+                              toast.success(
+                                t('ui.messages.setting_updated', {
+                                  defaultValue: 'Setting updated',
+                                }),
+                                { duration: 1500 },
+                              );
+                              await groupDetailQuery.refetch();
+                            } catch {
+                              toast.error(t('errors.setting_update_failed'));
+                            }
+                          }}
+                        />
+                      </Label>
+                    )}
                     <Link href={`/import-csv?groupId=${groupId}`}>
                       <Button
                         variant="ghost"
