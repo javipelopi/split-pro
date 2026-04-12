@@ -102,51 +102,59 @@ export const DuplicatesList: React.FC<DuplicatesListProps> = ({ groupId, userId 
 
             <div className="grid grid-cols-2 gap-2">
               {[pair.expenseA, pair.expenseB].map((expense) => (
-                <Link
-                  key={expense.id}
-                  href={`/groups/${groupId}/expenses/${expense.id}`}
-                  className="bg-muted/30 hover:bg-muted/50 rounded border p-2 transition-colors"
-                >
-                  <p className="truncate text-sm font-medium">{expense.name}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {new Date(expense.expenseDate).toLocaleDateString()}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {expense.paidByUser?.name ?? expense.paidByUser?.email ?? ''}
-                  </p>
-                  <p className="mt-1 text-sm font-medium">{toUIString(expense.amount)}</p>
-                </Link>
+                <div key={expense.id} className="relative">
+                  <Link
+                    href={`/groups/${groupId}/expenses/${expense.id}`}
+                    className="bg-muted/30 hover:bg-muted/50 block rounded border p-2 pr-8 transition-colors"
+                  >
+                    <p className="truncate text-sm font-medium">{expense.name}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {new Date(expense.expenseDate).toLocaleDateString()}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {expense.paidByUser?.name ?? expense.paidByUser?.email ?? ''}
+                    </p>
+                    <p className="mt-1 text-sm font-medium">{toUIString(expense.amount)}</p>
+                  </Link>
+                  <SimpleConfirmationDialog
+                    title={t('duplicates.delete_confirm_title', {
+                      defaultValue: 'Delete this expense?',
+                    })}
+                    description={t('duplicates.delete_confirm_description', {
+                      name: expense.name,
+                      defaultValue: `"${expense.name}" will be permanently deleted. This action cannot be undone.`,
+                    })}
+                    hasPermission
+                    onConfirm={() => handleDelete(expense.id)}
+                    loading={deleteMutation.isPending}
+                    variant="destructive"
+                  >
+                    <button
+                      type="button"
+                      className="absolute top-2 right-2 z-10 rounded p-1 text-red-400 opacity-60 transition-opacity hover:opacity-100"
+                      aria-label={t('duplicates.delete_expense', {
+                        name: expense.name,
+                        defaultValue: `Delete ${expense.name}`,
+                      })}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </SimpleConfirmationDialog>
+                </div>
               ))}
             </div>
 
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1"
+                className="w-full"
                 disabled={dismissMutation.isPending}
                 onClick={() => handleDismiss(pair.expenseA.id, pair.expenseB.id)}
               >
                 <Check className="mr-1 size-3.5" />
                 {t('duplicates.keep_both', { defaultValue: 'Keep both' })}
               </Button>
-              <SimpleConfirmationDialog
-                title={t('duplicates.delete_title', {
-                  defaultValue: 'Delete duplicate expense?',
-                })}
-                description={t('duplicates.delete_description', {
-                  defaultValue: 'Choose which expense to delete. The other will be kept.',
-                })}
-                hasPermission
-                onConfirm={() => handleDelete(pair.expenseB.id)}
-                loading={deleteMutation.isPending}
-                variant="destructive"
-              >
-                <Button variant="outline" size="sm" className="flex-1 text-red-500">
-                  <Trash2 className="mr-1 size-3.5" />
-                  {t('duplicates.delete_one', { defaultValue: 'Delete duplicate' })}
-                </Button>
-              </SimpleConfirmationDialog>
             </div>
           </div>
         );
