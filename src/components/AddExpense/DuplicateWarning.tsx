@@ -40,7 +40,7 @@ export const DuplicateWarning: React.FC<DuplicateWarningProps> = ({ duplicates, 
       {isExpanded && (
         <div className="mt-3 flex flex-col gap-2">
           {duplicates.slice(0, 5).map((dup) => {
-            const { toUIString, toSafeBigInt } = getCurrencyHelpers({
+            const { toUIString } = getCurrencyHelpers({
               currency: dup.expense.currency,
             });
             const expenseUrl = groupId
@@ -65,9 +65,7 @@ export const DuplicateWarning: React.FC<DuplicateWarningProps> = ({ duplicates, 
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="shrink-0 font-medium">
-                    {toUIString(toSafeBigInt(Number(dup.expense.amount)))}
-                  </span>
+                  <span className="shrink-0 font-medium">{toUIString(dup.expense.amount)}</span>
                   <Link href={expenseUrl}>
                     <Button variant="ghost" size="sm" className="size-7 p-0">
                       <ExternalLink className="size-3.5" />

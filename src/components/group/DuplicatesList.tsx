@@ -85,7 +85,7 @@ export const DuplicatesList: React.FC<DuplicatesListProps> = ({ groupId, userId 
         })}
       </p>
       {pairs.map((pair) => {
-        const { toUIString, toSafeBigInt } = getCurrencyHelpers({
+        const { toUIString } = getCurrencyHelpers({
           currency: pair.expenseA.currency,
         });
         return (
@@ -114,9 +114,7 @@ export const DuplicatesList: React.FC<DuplicatesListProps> = ({ groupId, userId 
                   <p className="text-muted-foreground text-xs">
                     {expense.paidByUser?.name ?? expense.paidByUser?.email ?? ''}
                   </p>
-                  <p className="mt-1 text-sm font-medium">
-                    {toUIString(toSafeBigInt(Number(expense.amount)))}
-                  </p>
+                  <p className="mt-1 text-sm font-medium">{toUIString(expense.amount)}</p>
                 </Link>
               ))}
             </div>
