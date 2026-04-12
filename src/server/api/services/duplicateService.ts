@@ -34,12 +34,10 @@ export interface ExpenseSummary {
   amount: bigint;
   currency: string;
   expenseDate: Date;
-  paidBy: int;
+  paidBy: number;
   groupId: number | null;
   paidByUser?: { name: string | null; email: string | null } | null;
 }
-
-type int = number;
 
 /** Score two expenses for duplicate likelihood (0–100). */
 export function scoreDuplicatePair(a: ExpenseSummary, b: ExpenseSummary): number {

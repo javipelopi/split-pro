@@ -20,8 +20,6 @@ export const DuplicateWarning: React.FC<DuplicateWarningProps> = ({ duplicates, 
     return null;
   }
 
-  const topMatch = duplicates[0]!;
-
   return (
     <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3">
       <button
