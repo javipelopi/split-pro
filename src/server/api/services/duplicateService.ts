@@ -1,25 +1,28 @@
-import { type Expense } from '@prisma/client';
 import { db } from '~/server/db';
 
 /**
  * Duplicate detection scoring algorithm.
  *
+ * Hard pre-filters (must pass BOTH to be a candidate pair):
+ *   1. Same currency
+ *   2. Dates within ±2 days
+ *   3. Different recurrenceId (recurring expenses are not duplicates)
+ *
  * Sort+window approach: O(n log n) — sort expenses by (currency, amount),
  * slide a window comparing only expenses within ±10% amount. For each
- * candidate pair, score multiple dimensions:
+ * candidate pair that passes pre-filters, score multiple dimensions:
  *
  *   Amount proximity   40 pts
- *   Date proximity     25 pts
  *   Same group         15 pts
  *   Same payer         10 pts
  *   Name similarity    10 pts
  *   ─────────────────────────
- *   Total             100 pts
+ *   Total              75 pts
  *
- * Threshold: >= 70 pts → potential duplicate.
+ * Threshold: >= 55 pts → potential duplicate.
  */
 
-const DUPLICATE_THRESHOLD = 70;
+const DUPLICATE_THRESHOLD = 55;
 const AMOUNT_WINDOW_RATIO = 0.1; // ±10%
 const DATE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000; // ±2 days
 
@@ -36,13 +39,25 @@ export interface ExpenseSummary {
   expenseDate: Date;
   paidBy: number;
   groupId: number | null;
+  recurrenceId?: number | null;
   paidByUser?: { name: string | null; email: string | null } | null;
 }
 
-/** Score two expenses for duplicate likelihood (0–100). */
+/** Score two expenses for duplicate likelihood (0–75). */
 export function scoreDuplicatePair(a: ExpenseSummary, b: ExpenseSummary): number {
-  // Different currencies are never duplicates
+  // Hard pre-filter: different currencies are never duplicates
   if (a.currency !== b.currency) {
+    return 0;
+  }
+
+  // Hard pre-filter: dates must be within ±2 days
+  const dateDiff = Math.abs(a.expenseDate.getTime() - b.expenseDate.getTime());
+  if (dateDiff > DATE_WINDOW_MS) {
+    return 0;
+  }
+
+  // Hard pre-filter: same recurrenceId means recurring expense, not duplicate
+  if (a.recurrenceId != null && b.recurrenceId != null && a.recurrenceId === b.recurrenceId) {
     return 0;
   }
 
@@ -60,12 +75,6 @@ export function scoreDuplicatePair(a: ExpenseSummary, b: ExpenseSummary): number
   } else {
     // Both zero — exact match
     score += 40;
-  }
-
-  // Date proximity (25 pts): 25 at same day, linear decay to 0 at ±2 days
-  const dateDiff = Math.abs(a.expenseDate.getTime() - b.expenseDate.getTime());
-  if (dateDiff <= DATE_WINDOW_MS) {
-    score += Math.round(25 * (1 - dateDiff / DATE_WINDOW_MS));
   }
 
   // Same group (15 pts)
@@ -156,6 +165,7 @@ export async function findDuplicatesForExpense(opts: {
       expenseDate: true,
       paidBy: true,
       groupId: true,
+      recurrenceId: true,
       paidByUser: { select: { name: true, email: true } },
     },
     take: 20,
@@ -207,6 +217,7 @@ export async function findDuplicatesInGroup(opts: {
       expenseDate: true,
       paidBy: true,
       groupId: true,
+      recurrenceId: true,
       paidByUser: { select: { name: true, email: true } },
     },
     orderBy: { expenseDate: 'desc' },
@@ -311,6 +322,7 @@ export async function findDuplicatesBatch(opts: {
       expenseDate: true,
       paidBy: true,
       groupId: true,
+      recurrenceId: true,
       paidByUser: { select: { name: true, email: true } },
     },
   });
