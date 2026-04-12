@@ -690,6 +690,13 @@ export interface RowOverride {
   paidBy?: number;
   category?: string;
   isIncome?: boolean;
+  /** Per-participant owed amounts (positive). When set, applyRowOverride
+   *  converts these to net positions using the resolved paidBy and amount.
+   *  For EQUAL/SHARE the owed amounts are recalculated equally; for EXACT
+   *  they are used as-is. */
+  participantOwed?: { userId: number; amount: number }[];
+  /** Override split type. Only EQUAL, SHARE, and EXACT are valid overrides. */
+  splitType?: 'EQUAL' | 'SHARE' | 'EXACT';
 }
 
 /**
@@ -709,6 +716,36 @@ export const applyRowOverride = (
   const category = override.category ?? expense.category;
   const paidBy = override.paidBy ?? expense.paidBy;
   const isIncome = override.isIncome ?? expense.isIncome;
+  const splitType = override.splitType ?? expense.splitType;
+
+  // Explicit participant overrides — convert owed amounts to net positions.
+  if (override.participantOwed) {
+    let owed = override.participantOwed;
+
+    // For EQUAL/SHARE, recalculate owed amounts equally among participants.
+    if (('EQUAL' === splitType || 'SHARE' === splitType) && owed.length > 0) {
+      const perPerson = amount / owed.length;
+      owed = owed.map((p) => ({ userId: p.userId, amount: perPerson }));
+    }
+
+    const participants = owed.map(({ userId, amount: owedAmt }) => ({
+      userId,
+      amount: userId === paidBy ? amount - owedAmt : -owedAmt,
+    }));
+
+    return {
+      ...expense,
+      description,
+      amount,
+      date,
+      category,
+      paidBy,
+      isIncome,
+      participants,
+      payers: [],
+      splitType: splitType,
+    };
+  }
 
   // Locked rows preserve their parser-built payers/participants entirely.
   if (expense.locked || 'SETTLEMENT' === expense.splitType) {

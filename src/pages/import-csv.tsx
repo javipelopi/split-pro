@@ -128,6 +128,8 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
   const isLocked = parsed.locked;
   const { toUIString, toSafeBigInt } = getCurrencyHelpers({ currency: groupCurrency });
+  const isSettlement = 'SETTLEMENT' === parsed.splitType;
+  const [exactAmountStrs, setExactAmountStrs] = useState<Record<number, string>>({});
   const payerLabel =
     expense.payers.length > 1
       ? expense.payers
@@ -175,9 +177,23 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   );
   const handlePayerChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
-      onUpdateOverride(index, { paidBy: parseInt(e.target.value) });
+      const newPaidBy = parseInt(e.target.value);
+      // For locked rows, push participant overrides so net positions recalculate
+      if (isLocked && !isSettlement) {
+        const currentOwed = expense.participants.map((p) => ({
+          userId: p.userId,
+          amount: p.userId === expense.paidBy ? expense.amount - p.amount : -p.amount,
+        }));
+        onUpdateOverride(index, {
+          paidBy: newPaidBy,
+          participantOwed: currentOwed,
+          splitType: expense.splitType as 'EQUAL' | 'SHARE' | 'EXACT',
+        });
+      } else {
+        onUpdateOverride(index, { paidBy: newPaidBy });
+      }
     },
-    [index, onUpdateOverride],
+    [index, expense, isLocked, isSettlement, onUpdateOverride],
   );
   const handleCategoryChange = useCallback(
     (category: string) => {
@@ -191,7 +207,71 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
     },
     [index, onUpdateOverride],
   );
-  const handleReset = useCallback(() => onResetRow(index), [index, onResetRow]);
+  const handleReset = useCallback(() => {
+    setExactAmountStrs({});
+    onResetRow(index);
+  }, [index, onResetRow]);
+
+  const participantIds = useMemo(
+    () => new Set(expense.participants.map((p) => p.userId)),
+    [expense.participants],
+  );
+
+  const participantOwed = useMemo(
+    () =>
+      expense.participants.map((p) => ({
+        userId: p.userId,
+        amount: p.userId === expense.paidBy ? expense.amount - p.amount : -p.amount,
+      })),
+    [expense.participants, expense.paidBy, expense.amount],
+  );
+
+  const handleSplitTypeChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newType = e.target.value as 'EQUAL' | 'EXACT';
+      const currentMemberIds = expense.participants.map((p) => p.userId);
+      const memberIds =
+        currentMemberIds.length > 0 ? currentMemberIds : groupMembers.map((m) => m.id);
+      setExactAmountStrs({});
+      onUpdateOverride(index, {
+        splitType: newType,
+        participantOwed: memberIds.map((userId) => ({
+          userId,
+          amount:
+            'EQUAL' === newType
+              ? expense.amount / memberIds.length
+              : (participantOwed.find((p) => p.userId === userId)?.amount ?? 0),
+        })),
+      });
+    },
+    [index, expense, groupMembers, participantOwed, onUpdateOverride],
+  );
+
+  const handleParticipantToggle = useCallback(
+    (userId: number) => {
+      const isParticipating = participantIds.has(userId);
+      const newOwed = isParticipating
+        ? participantOwed.filter((p) => p.userId !== userId)
+        : [...participantOwed, { userId, amount: 0 }];
+      const splitType =
+        'SHARE' === expense.splitType
+          ? ('EQUAL' as const)
+          : (expense.splitType as 'EQUAL' | 'EXACT');
+      setExactAmountStrs({});
+      onUpdateOverride(index, { splitType, participantOwed: newOwed });
+    },
+    [index, expense.splitType, participantIds, participantOwed, onUpdateOverride],
+  );
+
+  const handleParticipantAmountCommit = useCallback(
+    (userId: number, newAmount: number) => {
+      const newOwed = participantOwed.map((p) =>
+        p.userId === userId ? { userId, amount: newAmount } : p,
+      );
+      onUpdateOverride(index, { splitType: 'EXACT', participantOwed: newOwed });
+    },
+    [index, participantOwed, onUpdateOverride],
+  );
 
   return (
     <div className="py-2">
@@ -262,7 +342,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           <div className="flex flex-col gap-1">
             <Label>{t('import_csv.steps.preview.edit.payer')}</Label>
             <NativeSelect
-              disabled={isLocked}
+              disabled={isSettlement}
               value={expense.paidBy}
               onChange={handlePayerChange}
               className="w-full"
@@ -274,6 +354,85 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
               ))}
             </NativeSelect>
           </div>
+
+          {!isSettlement && (
+            <>
+              <div className="flex flex-col gap-1">
+                <Label>
+                  {t('import_csv.steps.preview.edit.split_type', { defaultValue: 'Split type' })}
+                </Label>
+                <NativeSelect
+                  value={'SHARE' === expense.splitType ? 'EQUAL' : expense.splitType}
+                  onChange={handleSplitTypeChange}
+                  className="w-full"
+                >
+                  <NativeSelectOption value="EQUAL">
+                    {t('import_csv.steps.preview.edit.split_equal', { defaultValue: 'Equal' })}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="EXACT">
+                    {t('import_csv.steps.preview.edit.split_exact', {
+                      defaultValue: 'Exact amounts',
+                    })}
+                  </NativeSelectOption>
+                </NativeSelect>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Label>
+                  {t('import_csv.steps.preview.edit.participants', {
+                    defaultValue: 'Participants',
+                  })}
+                </Label>
+                <div className="flex flex-col gap-1.5">
+                  {groupMembers.map((member) => {
+                    const isParticipating = participantIds.has(member.id);
+                    const owed = participantOwed.find((p) => p.userId === member.id);
+                    const isExact = 'EXACT' === expense.splitType;
+                    return (
+                      <div key={member.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isParticipating}
+                          onCheckedChange={() => handleParticipantToggle(member.id)}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {member.name ?? member.email ?? `User ${member.id}`}
+                        </span>
+                        {isParticipating &&
+                          (isExact ? (
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              className="h-7 w-24 text-right text-sm"
+                              value={exactAmountStrs[member.id] ?? (owed?.amount ?? 0).toFixed(2)}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                setExactAmountStrs((prev) => ({
+                                  ...prev,
+                                  [member.id]: e.target.value,
+                                }))
+                              }
+                              onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                                const val = parseFloat(e.target.value);
+                                if (!isNaN(val) && val >= 0) {
+                                  handleParticipantAmountCommit(member.id, val);
+                                }
+                                setExactAmountStrs((prev) => {
+                                  const { [member.id]: _, ...rest } = prev;
+                                  return rest;
+                                });
+                              }}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground w-24 text-right text-sm">
+                              {toUIString(toSafeBigInt(owed?.amount ?? 0))}
+                            </span>
+                          ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="flex flex-col gap-1">
             <Label>{t('import_csv.steps.preview.edit.category')}</Label>
