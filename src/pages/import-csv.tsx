@@ -525,7 +525,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
   const groupsQuery = api.group.getAllGroups.useQuery();
   const groupDetailQuery = api.group.getGroupDetails.useQuery(
     { groupId: selectedGroupId! },
-    { enabled: null !== selectedGroupId },
+    { enabled: null !== selectedGroupId, refetchOnWindowFocus: false },
   );
 
   const addExpenseMutation = api.expense.addOrEditExpense.useMutation();
