@@ -47,6 +47,8 @@ const STEPS: Step[] = ['upload', 'mapping', 'payers', 'defaults', 'preview'];
 
 const FIELD_LABELS: Record<MappableField, string> = {
   amount: 'Amount',
+  debit: 'Debit (home currency)',
+  credit: 'Credit (home currency)',
   date: 'Date',
   description: 'Description',
   payer: 'Payer',
@@ -506,6 +508,8 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
   // Mapping state
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
     amount: null,
+    debit: null,
+    credit: null,
     date: null,
     description: null,
     payer: null,

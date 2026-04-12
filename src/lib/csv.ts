@@ -52,17 +52,58 @@ const parseCSVLine = (line: string, delimiter: string): string[] => {
   return fields;
 };
 
+/**
+ * Detect and strip an Excel-style `sep=X` hint line that some European bank
+ * exports prepend.  When present the character after `=` is the delimiter and
+ * the hint line itself is not a data/header row.
+ */
+const extractSepHint = (lines: string[]): { delimiter: string | null; remaining: string[] } => {
+  if (lines.length > 0 && /^sep=.$/i.test(lines[0]!)) {
+    return { delimiter: lines[0]!.charAt(4), remaining: lines.slice(1) };
+  }
+  return { delimiter: null, remaining: lines };
+};
+
+/**
+ * Return `true` for footer / summary rows that should not be treated as data.
+ * Matches rows where any non-empty cell starts with "Total" (case-insensitive)
+ * as well as rows where the vast majority of cells are blank.
+ */
+const isFooterRow = (fields: string[]): boolean => {
+  if (0 === fields.length) {
+    return true;
+  }
+
+  const emptyCount = fields.filter((f) => '' === f.trim()).length;
+  if (emptyCount > fields.length * 0.6) {
+    return true;
+  }
+
+  return fields.some((f) => /^total\b/i.test(f.trim()));
+};
+
 export const parseCSV = (text: string): ParsedCSV => {
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const lines = normalized.split('\n').filter((line) => '' !== line.trim());
+  let lines = normalized.split('\n').filter((line) => '' !== line.trim());
 
   if (0 === lines.length) {
     return { headers: [], rows: [] };
   }
 
-  const delimiter = detectDelimiter(lines[0]!);
+  // Strip an optional sep= hint line and use the declared delimiter.
+  const { delimiter: hintDelimiter, remaining } = extractSepHint(lines);
+  lines = remaining;
+
+  if (0 === lines.length) {
+    return { headers: [], rows: [] };
+  }
+
+  const delimiter = hintDelimiter ?? detectDelimiter(lines[0]!);
   const headers = parseCSVLine(lines[0]!, delimiter);
-  const rows = lines.slice(1).map((line) => parseCSVLine(line, delimiter));
+  const rows = lines
+    .slice(1)
+    .map((line) => parseCSVLine(line, delimiter))
+    .filter((fields) => !isFooterRow(fields));
 
   return { headers, rows };
 };
@@ -234,10 +275,23 @@ export interface ColumnMapping {
    * `transfer` rows produce a SETTLEMENT split.
    */
   type: number | null;
+  /**
+   * Debit column — the converted/home-currency debit amount in bank
+   * statements with mixed currencies. When mapped, used in preference to
+   * `amount` for expense rows.
+   */
+  debit: number | null;
+  /**
+   * Credit column — the converted/home-currency credit amount. When
+   * mapped, used in preference to `amount` for income/refund rows.
+   */
+  credit: number | null;
 }
 
 export const MAPPABLE_FIELDS = [
   'amount',
+  'debit',
+  'credit',
   'date',
   'description',
   'payer',
@@ -250,6 +304,8 @@ export type MappableField = (typeof MAPPABLE_FIELDS)[number];
 
 const HEADER_HINTS: Record<MappableField, RegExp> = {
   amount: /^(amount|cost|price|total|sum|value|betrag|montant|importe)$/i,
+  debit: /^(debit|soll|cargo|débit|addebito)$/i,
+  credit: /^(credit|haben|abono|crédit|accredito)$/i,
   date: /date|datum|fecha|data|jour/i,
   description:
     /^(description|desc|purpose|name|title|note|memo|comment|bezeichnung|beschreibung)$/i,
@@ -263,6 +319,8 @@ const HEADER_HINTS: Record<MappableField, RegExp> = {
 export const autoDetectMapping = (headers: string[]): ColumnMapping => {
   const mapping: ColumnMapping = {
     amount: null,
+    debit: null,
+    credit: null,
     date: null,
     description: null,
     payer: null,
@@ -502,8 +560,15 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
       const isIncome = 'income' === typeRaw;
       const isTransfer = 'transfer' === typeRaw;
 
+      // --- Resolve amount cell, preferring debit/credit over amount ---
+      const debitVal = null !== mapping.debit ? (row[mapping.debit] ?? '').trim() : '';
+      const creditVal = null !== mapping.credit ? (row[mapping.credit] ?? '').trim() : '';
+      const rawAmountCell = row[mapping.amount!] ?? '';
+      // Debit/credit columns (home-currency values in multi-currency bank
+      // Statements) take precedence over the raw amount column.
+      const amountCell = '' !== debitVal ? debitVal : '' !== creditVal ? creditVal : rawAmountCell;
+
       // --- Payer(s) + paid amounts ---
-      const amountCell = row[mapping.amount!] ?? '';
       const payerCell = null !== mapping.payer ? (row[mapping.payer] ?? '') : '';
       const payerParts = splitMultiValue(payerCell);
       const amountParts = splitMultiValue(amountCell);

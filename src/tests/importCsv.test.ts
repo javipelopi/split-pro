@@ -27,6 +27,116 @@ const parseAndMap = (csvText: string) => {
   return { headers, rows, mapping };
 };
 
+describe('parseCSV – sep= hint line', () => {
+  it('strips the sep= hint and uses the declared delimiter', () => {
+    const csv = 'sep=;\nName;Amount;Date\nAlice;10.50;2024-01-01\nBob;20;2024-02-01\n';
+    const { headers, rows } = parseCSV(csv);
+    expect(headers).toEqual(['Name', 'Amount', 'Date']);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual(['Alice', '10.50', '2024-01-01']);
+  });
+
+  it('handles sep=, with comma delimiter', () => {
+    const csv = 'sep=,\nName,Amount\nAlice,10\n';
+    const { headers, rows } = parseCSV(csv);
+    expect(headers).toEqual(['Name', 'Amount']);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('is case-insensitive', () => {
+    const csv = 'SEP=;\nName;Amount\nAlice;10\n';
+    const { headers, rows } = parseCSV(csv);
+    expect(headers).toEqual(['Name', 'Amount']);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('ignores sep= when it is not alone on the first line', () => {
+    // "sep=;extra" is 10 chars — does not match /^sep=.$/
+    const csv = 'sep=;extra\nName;Amount\n';
+    const { headers } = parseCSV(csv);
+    // The first line was NOT stripped, so it becomes the header
+    expect(headers).not.toEqual(['Name', 'Amount']);
+  });
+});
+
+describe('parseCSV – footer row filtering', () => {
+  it('filters rows starting with Total', () => {
+    const csv = ['Name;Amount;Date', 'Alice;10;2024-01-01', 'Total;30;'].join('\n');
+    const { rows } = parseCSV(csv);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]![0]).toBe('Alice');
+  });
+
+  it('filters rows with Total in any field', () => {
+    const csv = ['A;B;C;D;E;F', 'x;1;y;z;w;v', ';;;Total per currency;;;'].join('\n');
+    const { rows } = parseCSV(csv);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('filters rows where the majority of fields are empty', () => {
+    const csv = ['A;B;C;D;E', 'x;1;y;z;w', ';;;x;'].join('\n');
+    const { rows } = parseCSV(csv);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('does not filter normal rows with some empty fields', () => {
+    const csv = ['A;B;C', 'x;1;', 'y;2;z'].join('\n');
+    const { rows } = parseCSV(csv);
+    // Row "x;1;" has 1/3 empty — under 60% threshold
+    expect(rows).toHaveLength(2);
+  });
+});
+
+describe('Spanish bank CSV (sep= + footers + mixed currencies)', () => {
+  const BANK_CSV = [
+    'sep=;',
+    'Account number;Card number;Account/Cardholder;Purchase date;Booking text;Sector;Amount;Original currency;Rate;Currency;Debit;Credit;Booked',
+    '1234;5678;J. SMITH;15/03/2024;HOTEL ZURICH;Travel;29.95;CHF;1.14938062;EUR;34.42;;15/03/2024',
+    '1234;5678;J. SMITH;16/03/2024;SUPERMARKET;Groceries;42.10;;;EUR;42.10;;16/03/2024',
+    '1234;5678;J. SMITH;17/03/2024;REFUND BOOKING;;;;;;;12.00;17/03/2024',
+    ';;;;Total per currency;;;;;;;;Total',
+    ';;;;Total card bookings;;;;;EUR;76.52;12.00;-64.52',
+  ].join('\n');
+
+  it('parses the full bank CSV: sep= stripped, footers removed, debit used', () => {
+    const { headers, rows } = parseCSV(BANK_CSV);
+
+    // Sep= line stripped; real header detected
+    expect(headers[0]).toBe('Account number');
+    expect(headers[10]).toBe('Debit');
+    expect(headers[11]).toBe('Credit');
+
+    // 3 data rows; 2 footer rows filtered out
+    expect(rows).toHaveLength(3);
+  });
+
+  it('produces expenses using debit column for multi-currency rows', () => {
+    const { headers, rows } = parseCSV(BANK_CSV);
+    const mapping = autoDetectMapping(headers);
+
+    expect(mapping.debit).toBe(10);
+    expect(mapping.credit).toBe(11);
+    expect(mapping.amount).toBe(6);
+
+    const expenses = parseRowsToExpensePayloads({
+      rows,
+      mapping,
+      nameMapping: NAME_MAPPING,
+      groupMemberIds: GROUP_MEMBER_IDS,
+      defaultPayerId: FRANCISCO,
+      defaultDate: DEFAULT_DATE,
+      defaultCategory: 'general',
+    });
+
+    // Row 1: CHF 29.95 in Amount, but Debit=34.42 EUR → use 34.42
+    expect(expenses[0]!.amount).toBeCloseTo(34.42);
+    // Row 2: EUR 42.10 in both Amount and Debit → 42.10
+    expect(expenses[1]!.amount).toBeCloseTo(42.1);
+    // Row 3: credit only (12.00), no debit → credit used
+    expect(expenses[2]!.amount).toBeCloseTo(12.0);
+  });
+});
+
 describe('autoDetectMapping (Settle Up format)', () => {
   it('detects all Settle Up columns from real export headers', () => {
     const headers = [
@@ -60,6 +170,31 @@ describe('autoDetectMapping (Settle Up format)', () => {
     const headers = ['Who paid', 'Amount', 'Converted amount'];
     const mapping = autoDetectMapping(headers);
     expect(mapping.amount).toBe(1);
+  });
+
+  it('detects Debit and Credit columns from bank statement headers', () => {
+    const headers = [
+      'Account number',
+      'Card number',
+      'Account/Cardholder',
+      'Purchase date',
+      'Booking text',
+      'Sector',
+      'Amount',
+      'Original currency',
+      'Rate',
+      'Currency',
+      'Debit',
+      'Credit',
+      'Booked',
+    ];
+    const mapping = autoDetectMapping(headers);
+    expect(mapping.amount).toBe(6);
+    expect(mapping.debit).toBe(10);
+    expect(mapping.credit).toBe(11);
+    expect(mapping.date).toBe(3);
+    // "Booking text" doesn't match description hints — that's expected
+    expect(mapping.description).toBeNull();
   });
 });
 
@@ -259,6 +394,64 @@ describe('parseRowsToExpensePayloads', () => {
     expect(expense!.locked).toBe(true);
     expect(expense!.splitType).toBe('EQUAL');
     expect(expense!.payers).toHaveLength(2);
+  });
+
+  it('prefers debit column over amount for multi-currency bank statements', () => {
+    // Simulates a Spanish bank CSV where Amount=29.95 (CHF) but Debit=34.42 (EUR)
+    const csv = [
+      '"Description","Amount","Debit","Credit","Date"',
+      '"Hotel Zurich","29.95","34.42","","2024-03-15"',
+    ].join('\n');
+    const { rows, mapping } = parseAndMap(csv);
+    expect(mapping.debit).toBe(2);
+    expect(mapping.credit).toBe(3);
+
+    const [expense] = parseRowsToExpensePayloads({
+      rows,
+      mapping,
+      nameMapping: NAME_MAPPING,
+      groupMemberIds: GROUP_MEMBER_IDS,
+      defaultPayerId: FRANCISCO,
+      defaultDate: DEFAULT_DATE,
+      defaultCategory: 'general',
+    });
+    // Should use debit value (34.42 EUR), not amount (29.95 CHF)
+    expect(expense!.amount).toBeCloseTo(34.42);
+  });
+
+  it('falls back to amount when debit and credit are both empty', () => {
+    const csv = ['"Description","Amount","Debit","Credit"', '"Lunch","15.00","",""'].join('\n');
+    const { rows, mapping } = parseAndMap(csv);
+
+    const [expense] = parseRowsToExpensePayloads({
+      rows,
+      mapping,
+      nameMapping: NAME_MAPPING,
+      groupMemberIds: GROUP_MEMBER_IDS,
+      defaultPayerId: FRANCISCO,
+      defaultDate: DEFAULT_DATE,
+      defaultCategory: 'general',
+    });
+    expect(expense!.amount).toBeCloseTo(15.0);
+  });
+
+  it('uses credit column when debit is empty but credit has a value', () => {
+    const csv = ['"Description","Amount","Debit","Credit"', '"Refund","50.00","","25.00"'].join(
+      '\n',
+    );
+    const { rows, mapping } = parseAndMap(csv);
+
+    const [expense] = parseRowsToExpensePayloads({
+      rows,
+      mapping,
+      nameMapping: NAME_MAPPING,
+      groupMemberIds: GROUP_MEMBER_IDS,
+      defaultPayerId: FRANCISCO,
+      defaultDate: DEFAULT_DATE,
+      defaultCategory: 'general',
+    });
+    // Credit value used: 25.00
+    expect(expense!.amount).toBeCloseTo(25.0);
   });
 });
 
