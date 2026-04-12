@@ -268,7 +268,8 @@ describe('parseRowsToExpensePayloads defaults', () => {
     defaults: {
       defaultDescription?: string;
       defaultAmount?: number;
-      defaultSplitType?: 'EQUAL' | 'SHARE' | 'DROP';
+      defaultSplitType?: 'EQUAL' | 'DROP';
+      groupMemberWeights?: Record<number, number>;
     } = {},
   ) => {
     const { rows, mapping } = parseAndMap(csvText);
@@ -302,10 +303,28 @@ describe('parseRowsToExpensePayloads defaults', () => {
     expect(parseWithDefaults(csv, { defaultAmount: 0 })).toEqual([]);
   });
 
-  it('uses SHARE split type when defaultSplitType is SHARE', () => {
+  it('produces EXACT splits with weighted amounts when group has non-uniform weights', () => {
     const csv = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
-    const [expense] = parseWithDefaults(csv, { defaultSplitType: 'SHARE' });
-    expect(expense!.splitType).toBe('SHARE');
+    // Francisco weight=1, Laura weight=2 → total=3
+    // Francisco owes 30*(1/3)=10, Laura owes 30*(2/3)=20
+    const [expense] = parseWithDefaults(csv, {
+      groupMemberWeights: { [FRANCISCO]: 1, [LAURA]: 2 },
+    });
+    expect(expense!.splitType).toBe('EXACT');
+    const byId = Object.fromEntries(expense!.participants.map((p) => [p.userId, p.amount]));
+    expect(byId[FRANCISCO]).toBeCloseTo(-10); // Paid 0, owed 10 → -10
+    expect(byId[LAURA]).toBeCloseTo(10); // Paid 30, owed 20 → +10
+  });
+
+  it('produces EQUAL splits when group has uniform weights', () => {
+    const csv = ['"Paid by","Amount","Purpose"', '"Laura","30","Dinner"'].join('\n');
+    const [expense] = parseWithDefaults(csv, {
+      groupMemberWeights: { [FRANCISCO]: 1, [LAURA]: 1 },
+    });
+    expect(expense!.splitType).toBe('EQUAL');
+    const byId = Object.fromEntries(expense!.participants.map((p) => [p.userId, p.amount]));
+    expect(byId[FRANCISCO]).toBeCloseTo(-15);
+    expect(byId[LAURA]).toBeCloseTo(15);
   });
 
   it('drops fallback rows when defaultSplitType is DROP', () => {

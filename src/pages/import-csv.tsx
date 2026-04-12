@@ -178,8 +178,8 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   const handlePayerChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newPaidBy = parseInt(e.target.value);
-      // For locked rows, push participant overrides so net positions recalculate
-      if (isLocked && !isSettlement) {
+      // For locked or EXACT rows, push participant overrides so net positions recalculate
+      if ((isLocked || 'EXACT' === expense.splitType) && !isSettlement) {
         const currentOwed = expense.participants.map((p) => ({
           userId: p.userId,
           amount: p.userId === expense.paidBy ? expense.amount - p.amount : -p.amount,
@@ -187,7 +187,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
         onUpdateOverride(index, {
           paidBy: newPaidBy,
           participantOwed: currentOwed,
-          splitType: expense.splitType as 'EQUAL' | 'SHARE' | 'EXACT',
+          splitType: expense.splitType as 'EQUAL' | 'EXACT',
         });
       } else {
         onUpdateOverride(index, { paidBy: newPaidBy });
@@ -253,10 +253,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
       const newOwed = isParticipating
         ? participantOwed.filter((p) => p.userId !== userId)
         : [...participantOwed, { userId, amount: 0 }];
-      const splitType =
-        'SHARE' === expense.splitType
-          ? ('EQUAL' as const)
-          : (expense.splitType as 'EQUAL' | 'EXACT');
+      const splitType = expense.splitType as 'EQUAL' | 'EXACT';
       setExactAmountStrs({});
       onUpdateOverride(index, { splitType, participantOwed: newOwed });
     },
@@ -362,7 +359,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
                   {t('import_csv.steps.preview.edit.split_type', { defaultValue: 'Split type' })}
                 </Label>
                 <NativeSelect
-                  value={'SHARE' === expense.splitType ? 'EQUAL' : expense.splitType}
+                  value={expense.splitType}
                   onChange={handleSplitTypeChange}
                   className="w-full"
                 >
@@ -535,6 +532,14 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     [groupDetailQuery.data],
   );
 
+  const groupMemberWeights = useMemo(
+    () =>
+      Object.fromEntries(
+        (groupDetailQuery.data?.groupUsers ?? []).map((gu) => [gu.userId, gu.weight]),
+      ),
+    [groupDetailQuery.data],
+  );
+
   const groupCurrency = useMemo(() => {
     const group = groupsQuery.data?.find((g) => g.group.id === selectedGroupId);
     return group?.group.defaultCurrency ?? 'USD';
@@ -564,6 +569,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
       defaultDescription,
       defaultAmount,
       defaultSplitType,
+      groupMemberWeights,
       validateCategory,
     });
   }, [
@@ -577,6 +583,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     defaultDescription,
     defaultAmount,
     defaultSplitType,
+    groupMemberWeights,
   ]);
 
   const groupMemberIds = useMemo(() => groupMembers.map((m) => m.id), [groupMembers]);
@@ -814,7 +821,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
 
   const handleDefaultSplitTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    if ('EQUAL' === value || 'SHARE' === value || 'DROP' === value) {
+    if ('EQUAL' === value || 'DROP' === value) {
       setDefaultSplitType(value);
     }
   }, []);
@@ -828,7 +835,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
 
     const splitTypeMap = {
       EQUAL: SplitType.EQUAL,
-      SHARE: SplitType.SHARE,
       EXACT: SplitType.EXACT,
       SETTLEMENT: SplitType.SETTLEMENT,
     } as const;
@@ -1166,9 +1172,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                 >
                   <NativeSelectOption value="EQUAL">
                     {t('import_csv.steps.defaults.split_type_equal')}
-                  </NativeSelectOption>
-                  <NativeSelectOption value="SHARE">
-                    {t('import_csv.steps.defaults.split_type_share')}
                   </NativeSelectOption>
                   <NativeSelectOption value="DROP">
                     {t('import_csv.steps.defaults.split_type_drop')}
