@@ -642,7 +642,7 @@ export const expenseRouter = createTRPCRouter({
         groupId: z.number(),
       }),
     )
-    .query(async ({ input }) => findDuplicatesBatch(input)),
+    .mutation(async ({ input }) => findDuplicatesBatch(input)),
 
   dismissDuplicate: protectedProcedure
     .input(

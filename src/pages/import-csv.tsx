@@ -647,28 +647,31 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     };
   }, [effectiveExpenses, selectedGroupId, groupCurrency]);
 
-  const duplicateBatchQuery = api.expense.findDuplicatesBatch.useQuery(duplicateBatchInput!, {
-    enabled: null !== duplicateBatchInput && 'preview' === currentStep,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-  });
+  const duplicateBatchMutation = api.expense.findDuplicatesBatch.useMutation();
+
+  useEffect(() => {
+    if (null !== duplicateBatchInput && 'preview' === currentStep) {
+      duplicateBatchMutation.mutate(duplicateBatchInput);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duplicateBatchInput, currentStep]);
 
   const duplicateRowIndices = useMemo(() => {
     const set = new Set<number>();
-    if (!duplicateBatchQuery.data) {
+    if (!duplicateBatchMutation.data) {
       return set;
     }
-    duplicateBatchQuery.data.existingMatches.forEach((matches, i) => {
+    duplicateBatchMutation.data.existingMatches.forEach((matches, i) => {
       if (matches.length > 0) {
         set.add(i);
       }
     });
-    duplicateBatchQuery.data.intraCsvPairs.forEach((pair) => {
+    duplicateBatchMutation.data.intraCsvPairs.forEach((pair) => {
       set.add(pair.indexA);
       set.add(pair.indexB);
     });
     return set;
-  }, [duplicateBatchQuery.data]);
+  }, [duplicateBatchMutation.data]);
 
   const duplicateCount = useMemo(
     () => [...duplicateRowIndices].filter((i) => selectedRows.has(i)).length,
