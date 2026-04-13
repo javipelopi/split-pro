@@ -29,6 +29,7 @@ RUN --mount=type=cache,target=/app/.next/cache \
 FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS release
 
 ARG APP_VERSION
+ARG GIT_SHA
 
 ENV NODE_ENV=production
 ENV DOCKER_OUTPUT=1
@@ -58,6 +59,7 @@ RUN npm install -g prisma@6.19.1
 # set this so it throws error where starting server
 ENV SKIP_ENV_VALIDATION="false"
 ENV APP_VERSION=${APP_VERSION}
+ENV GIT_SHA=${GIT_SHA}
 
 COPY ./start.sh ./start.sh
 

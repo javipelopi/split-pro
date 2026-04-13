@@ -85,6 +85,7 @@ jobs:
           cache-to: type=gha,mode=min,scope=amd64
           build-args: |
             APP_VERSION=smoke-test
+            GIT_SHA=smoke-sha
           tags: splitpro-smoke:test
 
       - name: Start app container
@@ -225,6 +226,7 @@ jobs:
           cache-to: type=gha,mode=min,scope=${{ matrix.suffix }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
+            GIT_SHA=${{ steps.version.outputs.sha }}
           tags: |
             ghcr.io/${{ github.repository }}-${{ matrix.suffix }}:${{ steps.version.outputs.channel }}
             ghcr.io/${{ github.repository }}-${{ matrix.suffix }}:${{ steps.version.outputs.sha }}
