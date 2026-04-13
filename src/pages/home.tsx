@@ -21,7 +21,6 @@ import Link from 'next/link';
 import { useTranslation } from 'next-i18next';
 import { BackgroundGradient } from '~/components/ui/background-gradient';
 import { Button } from '~/components/ui/button';
-import { env } from '~/env';
 
 import { LanguageSelector } from '~/components/LanguageSelector';
 import { customServerSideTranslations } from '~/utils/i18n/server';
@@ -49,10 +48,10 @@ const FeatureCard = ({
   </div>
 );
 
-export default function Home() {
+export default function Home({ isCloudDeployment }: { isCloudDeployment: boolean }) {
   const { t } = useTranslation('home');
 
-  const isCloud = env.NEXT_PUBLIC_IS_CLOUD_DEPLOYMENT;
+  const isCloud = isCloudDeployment;
 
   return (
     <>
@@ -218,6 +217,12 @@ const MobileScreenShot = () => (
   </BackgroundGradient>
 );
 
-export const getServerSideProps: GetServerSideProps = async (context) => ({
-  props: await customServerSideTranslations(context.locale, ['home']),
-});
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { env } = await import('~/env');
+  return {
+    props: {
+      isCloudDeployment: env.NEXTAUTH_URL?.includes('splitpro.app') ?? false,
+      ...(await customServerSideTranslations(context.locale, ['home'])),
+    },
+  };
+};

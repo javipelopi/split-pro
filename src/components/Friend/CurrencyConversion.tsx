@@ -4,7 +4,6 @@ import { api } from '~/utils/api';
 import { MAX_RATE_PRECISION, currencyConversion, getRatePrecision } from '~/utils/numbers';
 
 import { toast } from 'sonner';
-import { env } from '~/env';
 import { type CurrencyCode, isCurrencyCode } from '~/lib/currency';
 import { useAddExpenseStore } from '~/store/addStore';
 import { CurrencyPicker } from '../AddExpense/CurrencyPicker';
@@ -29,6 +28,7 @@ export const CurrencyConversion: React.FC<{
   }) => Promise<void> | void;
 }> = ({ amount, editingRate, editingTargetCurrency, currency, children, onSubmit }) => {
   const { t, getCurrencyHelpersCached } = useTranslationWithUtils();
+  const configQuery = api.config.getPublicConfig.useQuery();
 
   const { toUIString, toSafeBigInt } = getCurrencyHelpersCached(currency);
 
@@ -217,7 +217,7 @@ export const CurrencyConversion: React.FC<{
                     currentCurrency={targetCurrency}
                     onCurrencyPick={onChangeTargetCurrency}
                     // Client env vars with pages router only work after next build :/
-                    showOnlyFrankfurter={env.NEXT_PUBLIC_FRANKFURTER_USED}
+                    showOnlyFrankfurter={configQuery.data?.frankfurterUsed ?? false}
                   />
                 )}
               </div>

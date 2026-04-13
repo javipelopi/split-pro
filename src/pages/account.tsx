@@ -36,12 +36,24 @@ import {
 import { api } from '~/utils/api';
 import type { NextPageWithUser } from '~/types';
 import { DebugInfo } from '~/components/Account/DebugInfo';
+import { execSync } from 'node:child_process';
 
 const AccountPage: NextPageWithUser<{
   feedBackPossible: boolean;
   bankConnectionEnabled: boolean;
   bankConnection: string;
-}> = ({ user, feedBackPossible, bankConnectionEnabled, bankConnection }) => {
+  isCloudDeployment: boolean;
+  appVersion: string | null;
+  gitSha: string | null;
+}> = ({
+  user,
+  feedBackPossible,
+  bankConnectionEnabled,
+  bankConnection,
+  isCloudDeployment,
+  appVersion,
+  gitSha,
+}) => {
   const { t } = useTranslation();
   const router = useRouter();
   const userQuery = api.user.me.useQuery();
@@ -87,7 +99,7 @@ const AccountPage: NextPageWithUser<{
     void router.push('/auth/signin', '/auth/signin', { locale: 'default' });
   }, [router]);
 
-  const isCloud = env.NEXT_PUBLIC_IS_CLOUD_DEPLOYMENT;
+  const isCloud = isCloudDeployment;
 
   return (
     <>
@@ -158,7 +170,7 @@ const AccountPage: NextPageWithUser<{
             {t('account.import_from_splitwise')}
           </AccountButton>
 
-          <DebugInfo>
+          <DebugInfo gitSha={gitSha} appVersion={appVersion}>
             <AccountButton>
               <BadgeInfo className="size-5 text-red-700" />
               {t('account.debug_info')}
@@ -182,13 +194,25 @@ const AccountPage: NextPageWithUser<{
 
 AccountPage.auth = true;
 
-export const getServerSideProps: GetServerSideProps = async (context) => ({
-  props: {
-    feedbackPossible: Boolean(env.FEEDBACK_EMAIL),
-    bankConnectionEnabled: Boolean(isBankConnectionConfigured()),
-    bankConnection: whichBankConnectionConfigured(),
-    ...(await customServerSideTranslations(context.locale, ['common'])),
-  },
-});
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  let gitSha: string | null = process.env.GIT_SHA ?? null;
+  if (!gitSha) {
+    try {
+      gitSha = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+    } catch {}
+  }
+
+  return {
+    props: {
+      feedbackPossible: Boolean(env.FEEDBACK_EMAIL),
+      bankConnectionEnabled: Boolean(isBankConnectionConfigured()),
+      bankConnection: whichBankConnectionConfigured(),
+      isCloudDeployment: env.NEXTAUTH_URL?.includes('splitpro.app') ?? false,
+      appVersion: process.env.APP_VERSION ?? null,
+      gitSha,
+      ...(await customServerSideTranslations(context.locale, ['common'])),
+    },
+  };
+};
 
 export default AccountPage;

@@ -1,5 +1,4 @@
 import { createEnv } from '@t3-oss/env-nextjs';
-import { execSync } from 'node:child_process';
 import { z } from 'zod';
 
 export const env = createEnv({
@@ -77,13 +76,7 @@ export const env = createEnv({
    * isn't built with invalid env vars. To expose them to the client, prefix them with
    * `NEXT_PUBLIC_`.
    */
-  client: {
-    NEXT_PUBLIC_FRANKFURTER_USED: z.boolean().default(false),
-    NEXT_PUBLIC_IS_CLOUD_DEPLOYMENT: z.boolean().default(false),
-    NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(10),
-    NEXT_PUBLIC_VERSION: z.string().optional(),
-    NEXT_PUBLIC_GIT_SHA: z.string().optional(),
-  },
+  client: {},
 
   /**
    * You can't destruct `process.env` as a regular object in the Next.js edge runtimes (e.g.
@@ -136,17 +129,9 @@ export const env = createEnv({
     OIDC_CLIENT_SECRET: process.env.OIDC_CLIENT_SECRET,
     OIDC_WELL_KNOWN_URL: process.env.OIDC_WELL_KNOWN_URL,
     OIDC_ALLOW_DANGEROUS_EMAIL_LINKING: Boolean(process.env.OIDC_ALLOW_DANGEROUS_EMAIL_LINKING),
-    NEXT_PUBLIC_FRANKFURTER_USED: process.env.CURRENCY_RATE_PROVIDER === 'frankfurter',
-    NEXT_PUBLIC_IS_CLOUD_DEPLOYMENT: process.env.NEXTAUTH_URL?.includes('splitpro.app') ?? false,
-    NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB: process.env.UPLOAD_MAX_FILE_SIZE_MB
-      ? Number(process.env.UPLOAD_MAX_FILE_SIZE_MB)
-      : 10,
     UPLOAD_MAX_FILE_SIZE_MB: process.env.UPLOAD_MAX_FILE_SIZE_MB
       ? Number(process.env.UPLOAD_MAX_FILE_SIZE_MB)
       : 10,
-    NEXT_PUBLIC_VERSION: process.env.APP_VERSION,
-    NEXT_PUBLIC_GIT_SHA:
-      process.env.GIT_SHA ?? execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim(),
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

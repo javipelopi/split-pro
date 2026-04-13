@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { useTranslation } from 'next-i18next';
 import imageCompression from 'browser-image-compression';
 
-import { env } from '~/env';
 import { useAddExpenseStore } from '~/store/addStore';
+import { api } from '~/utils/api';
 
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -15,6 +15,8 @@ export const UploadFile: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const fileKey = useAddExpenseStore((s) => s.fileKey);
   const { setFileUploading, setFileKey } = useAddExpenseStore((s) => s.actions);
+  const configQuery = api.config.getPublicConfig.useQuery();
+  const uploadMaxFileSizeMB = configQuery.data?.uploadMaxFileSizeMB ?? 10;
 
   const handleFileChange = React.useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,7 +33,7 @@ export const UploadFile: React.FC = () => {
         if (file.type.startsWith('image/')) {
           try {
             const options = {
-              maxSizeMB: env.NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB,
+              maxSizeMB: uploadMaxFileSizeMB,
               maxWidthOrHeight: 1920,
               useWebWorker: true,
               fileType: 'image/jpeg',
@@ -44,9 +46,9 @@ export const UploadFile: React.FC = () => {
         }
 
         // Check size after compression
-        const maxSize = env.NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024;
+        const maxSize = uploadMaxFileSizeMB * 1024 * 1024;
         if (file.size > maxSize) {
-          toast.error(t('errors.less_than', { size: env.NEXT_PUBLIC_UPLOAD_MAX_FILE_SIZE_MB }));
+          toast.error(t('errors.less_than', { size: uploadMaxFileSizeMB }));
           return;
         }
 
@@ -77,7 +79,7 @@ export const UploadFile: React.FC = () => {
         setFileUploading(false);
       }
     },
-    [setFileUploading, setFileKey, t],
+    [setFileUploading, setFileKey, t, uploadMaxFileSizeMB],
   );
 
   return (
