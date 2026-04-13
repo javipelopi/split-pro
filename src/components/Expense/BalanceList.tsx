@@ -10,7 +10,7 @@ import { GroupSettleUp } from '../Friend/GroupSettleup';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { BalanceDisplay } from '../ui/BalanceDisplay';
 import { Button } from '../ui/button';
-import { CURRENCY_CONVERSION_ICON, SETTLEUP_ICON } from '../ui/categoryIcons';
+import { CurrencyConversionIcon, SettleupIcon } from '../ui/categoryIcons';
 import { toast } from 'sonner';
 
 interface UserWithBalance {
@@ -172,7 +172,7 @@ export const BalanceList: React.FC<{
                               groupId={groupBalances[0]!.groupId!}
                             >
                               <Button size="icon" variant="secondary" className="size-8">
-                                <SETTLEUP_ICON className="size-4" />
+                                <SettleupIcon className="size-4" />
                               </Button>
                             </GroupSettleUp>
                             <CurrencyConversion
@@ -181,7 +181,7 @@ export const BalanceList: React.FC<{
                               currency={currency}
                             >
                               <Button size="icon" variant="secondary" className="size-8">
-                                <CURRENCY_CONVERSION_ICON className="size-4" />
+                                <CurrencyConversionIcon className="size-4" />
                               </Button>
                             </CurrencyConversion>
                           </div>

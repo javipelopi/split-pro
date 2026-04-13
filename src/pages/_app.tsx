@@ -14,8 +14,6 @@ import { CurrencyHelpersProvider } from '~/contexts/CurrencyHelpersContext';
 import '~/styles/globals.css';
 import { LoadingSpinner } from '~/components/ui/spinner';
 import { env } from '~/env';
-import { parseCurrencyCode } from '~/lib/currency';
-import { useAddExpenseStore } from '~/store/addStore';
 import { useAppStore } from '~/store/appStore';
 import { type NextPageWithUser } from '~/types';
 import { api } from '~/utils/api';
@@ -102,7 +100,6 @@ const Auth: React.FC<{ Page: NextPageWithUser; pageProps: any }> = ({ Page, page
   const router = useRouter();
   const languageSetRef = useRef(false);
 
-  const { setCurrency } = useAddExpenseStore((s) => s.actions);
   const { setWebPushPublicKey } = useAppStore((s) => s.actions);
 
   const { data: webPushPublicKey } = api.user.getWebPushPublicKey.useQuery();
@@ -121,8 +118,6 @@ const Auth: React.FC<{ Page: NextPageWithUser; pageProps: any }> = ({ Page, page
 
   useEffect(() => {
     if ('authenticated' === status && data.user) {
-      setCurrency(parseCurrencyCode(data.user.currency));
-
       if (!data.user.preferredLanguage && !languageSetRef.current) {
         // If user has no preferred language, set it to the current locale (once per mount)
         languageSetRef.current = true;
@@ -168,7 +163,7 @@ const Auth: React.FC<{ Page: NextPageWithUser; pageProps: any }> = ({ Page, page
           .catch(console.error);
       }
     }
-  }, [status, data?.user, setCurrency, router, updateUser, update]);
+  }, [status, data?.user, router, updateUser, update]);
 
   if ('loading' === status) {
     return (
