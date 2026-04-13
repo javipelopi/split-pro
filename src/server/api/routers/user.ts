@@ -8,7 +8,10 @@ import { db } from '~/server/db';
 import { sendFeedbackEmail, sendInviteEmail } from '~/server/mailer';
 import { SplitwiseGroupSchema, SplitwiseUserSchema } from '~/types';
 
-// Import { sendExpensePushNotification } from '../services/notificationService';
+import {
+  getSubscriptionEndpoint,
+  sendPushNotificationToUsers,
+} from '../services/notificationService';
 import { getProcessedBalances } from '../services/balanceService';
 import {
   getCompleteFriendsDetails,
@@ -157,12 +160,25 @@ export const userRouter = createTRPCRouter({
   updatePushNotification: protectedProcedure
     .input(z.object({ subscription: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      const endpoint = getSubscriptionEndpoint(input.subscription);
+
+      if (!endpoint) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid push subscription payload',
+        });
+      }
+
       await db.pushNotification.upsert({
         where: {
-          userId: ctx.session.user.id,
+          userId_endpoint: {
+            userId: ctx.session.user.id,
+            endpoint,
+          },
         },
         create: {
           userId: ctx.session.user.id,
+          endpoint,
           subscription: input.subscription,
         },
         update: {
@@ -170,6 +186,38 @@ export const userRouter = createTRPCRouter({
         },
       });
     }),
+
+  deletePushNotification: protectedProcedure
+    .input(z.object({ subscription: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const endpoint = getSubscriptionEndpoint(input.subscription);
+      if (!endpoint) {
+        return;
+      }
+
+      await db.pushNotification
+        .delete({
+          where: {
+            userId_endpoint: {
+              userId: ctx.session.user.id,
+              endpoint,
+            },
+          },
+        })
+        .catch(() => null);
+    }),
+
+  sendTestPushNotification: protectedProcedure.mutation(async ({ ctx }) => {
+    const { sentCount } = await sendPushNotificationToUsers([ctx.session.user.id], {
+      title: 'SplitPro',
+      message: 'Test notification from debug info',
+      data: {
+        url: '/account',
+      },
+    });
+
+    return { sentCount };
+  }),
 
   deleteFriend: protectedProcedure
     .input(z.object({ friendId: z.number() }))
