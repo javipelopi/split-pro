@@ -10,6 +10,10 @@ import KeycloakProvider from 'next-auth/providers/keycloak';
 import { env } from '~/env';
 import { db } from '~/server/db';
 
+if (env.NODE_TLS_REJECT_UNAUTHORIZED) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = env.NODE_TLS_REJECT_UNAUTHORIZED;
+}
+
 import type { OAuthConfig } from 'next-auth/providers/oauth';
 
 /**
