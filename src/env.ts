@@ -77,7 +77,10 @@ export const env = createEnv({
    * isn't built with invalid env vars. To expose them to the client, prefix them with
    * `NEXT_PUBLIC_`.
    */
-  client: {},
+  client: {
+    NEXT_PUBLIC_VERSION: z.string().optional(),
+    NEXT_PUBLIC_GIT_SHA: z.string().optional(),
+  },
 
   /**
    * You can't destruct `process.env` as a regular object in the Next.js edge runtimes (e.g.
@@ -134,6 +137,8 @@ export const env = createEnv({
       ? Number(process.env.UPLOAD_MAX_FILE_SIZE_MB)
       : 10,
     NODE_TLS_REJECT_UNAUTHORIZED: process.env.NODE_TLS_REJECT_UNAUTHORIZED,
+    NEXT_PUBLIC_VERSION: process.env.APP_VERSION,
+    NEXT_PUBLIC_GIT_SHA: process.env.GIT_SHA,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
