@@ -26,8 +26,9 @@ import { UploadFile } from './UploadFile';
 import { UserInput } from './UserInput';
 import { CurrencyInput } from '../ui/currency-input';
 import { CurrencyConversion } from '../Friend/CurrencyConversion';
-import { currencyConversion, getRatePrecision } from '~/utils/numbers';
-import { CURRENCY_CONVERSION_ICON } from '../ui/categoryIcons';
+import { currencyConversion } from '~/utils/numbers';
+import { CurrencyConversionIcon } from '../ui/categoryIcons';
+import { useSession } from 'next-auth/react';
 
 export const AddOrEditExpensePage: React.FC<{
   expenseId?: string;
@@ -74,6 +75,7 @@ export const AddOrEditExpensePage: React.FC<{
 
   const addExpenseMutation = api.expense.addOrEditExpense.useMutation();
   const updateProfile = api.user.updateUserDetail.useMutation();
+  const { update } = useSession();
 
   // Duplicate detection: debounced query when amount, date, group, and description are set
   const duplicateCheckEnabled =
@@ -198,6 +200,15 @@ export const AddOrEditExpensePage: React.FC<{
 
                 navPromise()
                   .then(() => resetState())
+                  .then(() =>
+                    update((session: any) => ({
+                      ...session,
+                      user: {
+                        ...(session?.user ?? {}),
+                        currency,
+                      },
+                    })),
+                  )
                   .catch(console.error);
               }
             }
@@ -237,6 +248,7 @@ export const AddOrEditExpensePage: React.FC<{
     cronExpression,
     multipleTransactions,
     setSingleTransaction,
+    update,
   ]);
 
   const handleDescriptionChange = useCallback(
@@ -292,7 +304,7 @@ export const AddOrEditExpensePage: React.FC<{
         editingTargetCurrency={currency}
       >
         <Button size="icon" variant="secondary" className="size-8">
-          <CURRENCY_CONVERSION_ICON className="size-4" />
+          <CurrencyConversionIcon className="size-4" />
         </Button>
       </CurrencyConversion>
     );
