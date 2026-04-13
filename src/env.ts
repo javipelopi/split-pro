@@ -69,6 +69,7 @@ export const env = createEnv({
     OIDC_WELL_KNOWN_URL: z.string().optional(),
     OIDC_ALLOW_DANGEROUS_EMAIL_LINKING: z.boolean().optional(),
     UPLOAD_MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(10),
+    NODE_TLS_REJECT_UNAUTHORIZED: z.string().optional(),
   },
 
   /**
@@ -142,6 +143,7 @@ export const env = createEnv({
     UPLOAD_MAX_FILE_SIZE_MB: process.env.UPLOAD_MAX_FILE_SIZE_MB
       ? Number(process.env.UPLOAD_MAX_FILE_SIZE_MB)
       : 10,
+    NODE_TLS_REJECT_UNAUTHORIZED: process.env.NODE_TLS_REJECT_UNAUTHORIZED,
     NEXT_PUBLIC_VERSION: process.env.APP_VERSION,
   },
   /**
