@@ -47,16 +47,14 @@ const STEPS: Step[] = ['upload', 'mapping', 'payers', 'defaults', 'preview'];
 
 const FIELD_LABELS: Record<MappableField, string> = {
   amount: 'Amount',
-  debit: 'Debit (home currency)',
-  credit: 'Credit (home currency)',
   date: 'Date',
   description: 'Description',
-  payer: 'Payer',
+  currency: 'Currency',
   category: 'Category',
+  type: 'Type',
+  payer: 'Payer',
   forWhom: 'For whom',
   splitAmounts: 'Split amounts',
-  type: 'Type',
-  currency: 'Currency',
 };
 
 const validateCategory = (category: string): string => {
@@ -509,8 +507,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
   // Mapping state
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
     amount: null,
-    debit: null,
-    credit: null,
     date: null,
     description: null,
     payer: null,

@@ -276,17 +276,6 @@ export interface ColumnMapping {
    */
   type: number | null;
   /**
-   * Debit column — the converted/home-currency debit amount in bank
-   * statements with mixed currencies. When mapped, used in preference to
-   * `amount` for expense rows.
-   */
-  debit: number | null;
-  /**
-   * Credit column — the converted/home-currency credit amount. When
-   * mapped, used in preference to `amount` for income/refund rows.
-   */
-  credit: number | null;
-  /**
    * "Currency" — per-row currency code (e.g. "USD", "EUR"). When mapped,
    * each row can specify its own currency. Useful for mixed-currency CSVs
    * combined with single-currency mode (auto-converted on the backend).
@@ -296,23 +285,19 @@ export interface ColumnMapping {
 
 export const MAPPABLE_FIELDS = [
   'amount',
-  'debit',
-  'credit',
   'date',
   'description',
-  'payer',
+  'currency',
   'category',
+  'type',
+  'payer',
   'forWhom',
   'splitAmounts',
-  'type',
-  'currency',
 ] as const;
 export type MappableField = (typeof MAPPABLE_FIELDS)[number];
 
 const HEADER_HINTS: Record<MappableField, RegExp> = {
   amount: /^(amount|cost|price|total|sum|value|betrag|montant|importe)$/i,
-  debit: /^(debit|soll|cargo|débit|addebito)$/i,
-  credit: /^(credit|haben|abono|crédit|accredito)$/i,
   date: /date|datum|fecha|data|jour/i,
   description:
     /^(description|desc|purpose|name|title|note|memo|comment|bezeichnung|beschreibung)$/i,
@@ -327,8 +312,6 @@ const HEADER_HINTS: Record<MappableField, RegExp> = {
 export const autoDetectMapping = (headers: string[]): ColumnMapping => {
   const mapping: ColumnMapping = {
     amount: null,
-    debit: null,
-    credit: null,
     date: null,
     description: null,
     payer: null,
@@ -577,13 +560,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
       const isIncome = 'income' === typeRaw;
       const isTransfer = 'transfer' === typeRaw;
 
-      // --- Resolve amount cell, preferring debit/credit over amount ---
-      const debitVal = null !== mapping.debit ? (row[mapping.debit] ?? '').trim() : '';
-      const creditVal = null !== mapping.credit ? (row[mapping.credit] ?? '').trim() : '';
-      const rawAmountCell = row[mapping.amount!] ?? '';
-      // Debit/credit columns (home-currency values in multi-currency bank
-      // Statements) take precedence over the raw amount column.
-      const amountCell = '' !== debitVal ? debitVal : '' !== creditVal ? creditVal : rawAmountCell;
+      const amountCell = row[mapping.amount!] ?? '';
 
       // --- Payer(s) + paid amounts ---
       const payerCell = null !== mapping.payer ? (row[mapping.payer] ?? '') : '';
