@@ -38,6 +38,7 @@ import { AppDrawer } from '~/components/ui/drawer';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { SimpleConfirmationDialog } from '~/components/SimpleConfirmationDialog';
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover';
 import { Switch } from '~/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { UpdateName } from '~/components/Account/UpdateName';
@@ -228,30 +229,131 @@ const BalancePage: NextPageWithUser = ({ user }) => {
                   </div>
 
                   {isAdmin && (
-                    <div className="mt-4 flex items-center justify-between">
-                      <p className="text-sm text-gray-400">
-                        {t('group_details.group_info.default_currency', 'Default currency')}
-                      </p>
-                      <CurrencyPicker
-                        currentCurrency={parseCurrencyCode(
-                          groupDetailQuery.data?.defaultCurrency ?? 'USD',
-                        )}
-                        onCurrencyPick={async (currency) => {
-                          try {
-                            await updateGroupDetailsMutation.mutateAsync({
-                              groupId,
-                              name: groupDetailQuery.data?.name ?? '',
-                              defaultCurrency: currency,
-                            });
-                            toast.success(t('ui.messages.currency_updated', 'Currency updated'), {
-                              duration: 1500,
-                            });
-                            await groupDetailQuery.refetch();
-                          } catch {
-                            toast.error(t('errors.setting_update_failed'));
-                          }
-                        }}
-                      />
+                    <div className="mt-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-gray-400">
+                          {t('group_details.group_info.default_currency', 'Default currency')}
+                        </p>
+                        <CurrencyPicker
+                          currentCurrency={parseCurrencyCode(
+                            groupDetailQuery.data?.defaultCurrency ?? 'USD',
+                          )}
+                          onCurrencyPick={async (currency) => {
+                            try {
+                              await updateGroupDetailsMutation.mutateAsync({
+                                groupId,
+                                name: groupDetailQuery.data?.name ?? '',
+                                defaultCurrency: currency,
+                              });
+                              toast.success(t('ui.messages.currency_updated', 'Currency updated'), {
+                                duration: 1500,
+                              });
+                              await groupDetailQuery.refetch();
+                            } catch {
+                              toast.error(t('errors.setting_update_failed'));
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Label
+                            htmlFor="single-currency-mode"
+                            className="cursor-pointer text-sm text-gray-400"
+                          >
+                            {t('group_details.group_info.single_currency_mode', {
+                              defaultValue: `Track all in ${groupDetailQuery.data?.defaultCurrency ?? 'USD'}`,
+                            })}
+                          </Label>
+                          <Popover>
+                            <PopoverTrigger
+                              aria-label={t('group_details.group_info.single_currency_info_aria', {
+                                defaultValue: 'About single-currency mode',
+                              })}
+                              className="inline-flex"
+                            >
+                              <Info className="size-3.5 text-gray-400" />
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-80 text-xs">
+                              <p className="mb-2 font-semibold">
+                                {t('group_details.group_info.single_currency_info_title', {
+                                  defaultValue: 'Single-currency mode',
+                                })}
+                              </p>
+                              <ul className="list-disc space-y-1 pl-4 text-gray-300">
+                                <li>
+                                  {t('group_details.group_info.single_currency_info_convert', {
+                                    defaultValue:
+                                      "Foreign-currency expenses are auto-converted to the group's default currency.",
+                                  })}
+                                </li>
+                                <li>
+                                  {t('group_details.group_info.single_currency_info_rates', {
+                                    defaultValue:
+                                      'Conversions use daily ECB reference rates from api.frankfurter.dev (free, no API key).',
+                                  })}
+                                </li>
+                                <li>
+                                  {t('group_details.group_info.single_currency_info_cache', {
+                                    defaultValue:
+                                      'Rates are cached locally; historical rates are permanent.',
+                                  })}
+                                </li>
+                                <li>
+                                  {t('group_details.group_info.single_currency_info_original', {
+                                    defaultValue:
+                                      'Original amounts are preserved on each expense for reference.',
+                                  })}
+                                </li>
+                              </ul>
+                              {(() => {
+                                const currencyCount =
+                                  groupTotalQuery.data?.filter(
+                                    (total) =>
+                                      null != total._sum.amount && 0n !== total._sum.amount,
+                                  ).length ?? 0;
+                                if (
+                                  currencyCount > 1 &&
+                                  !groupDetailQuery.data?.singleCurrencyMode
+                                ) {
+                                  return (
+                                    <p className="mt-2 text-amber-400">
+                                      {t('group_details.group_info.single_currency_info_warning', {
+                                        defaultValue:
+                                          'This group already has expenses in multiple currencies. Existing foreign-currency balances will need manual reconciliation.',
+                                      })}
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <Switch
+                          id="single-currency-mode"
+                          disabled={isArchived}
+                          checked={groupDetailQuery.data?.singleCurrencyMode ?? false}
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await updateGroupDetailsMutation.mutateAsync({
+                                groupId,
+                                name: groupDetailQuery.data?.name ?? '',
+                                singleCurrencyMode: checked,
+                              });
+                              toast.success(
+                                t('ui.messages.setting_updated', {
+                                  defaultValue: 'Setting updated',
+                                }),
+                                { duration: 1500 },
+                              );
+                              await groupDetailQuery.refetch();
+                            } catch {
+                              toast.error(t('errors.setting_update_failed'));
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -383,39 +485,6 @@ const BalancePage: NextPageWithUser = ({ user }) => {
                         }}
                       />
                     </Label>
-                    {isAdmin && (
-                      <Label className="flex cursor-pointer items-center justify-between">
-                        <p className="flex items-center">
-                          <ArrowLeftRight className="mr-2 size-4" />{' '}
-                          {t('group_details.group_info.single_currency_mode', {
-                            defaultValue: `Track all in ${groupDetailQuery.data?.defaultCurrency ?? 'USD'}`,
-                          })}
-                        </p>
-                        <Switch
-                          id="single-currency-mode"
-                          disabled={isArchived}
-                          checked={groupDetailQuery.data?.singleCurrencyMode ?? false}
-                          onCheckedChange={async (checked) => {
-                            try {
-                              await updateGroupDetailsMutation.mutateAsync({
-                                groupId,
-                                name: groupDetailQuery.data?.name ?? '',
-                                singleCurrencyMode: checked,
-                              });
-                              toast.success(
-                                t('ui.messages.setting_updated', {
-                                  defaultValue: 'Setting updated',
-                                }),
-                                { duration: 1500 },
-                              );
-                              await groupDetailQuery.refetch();
-                            } catch {
-                              toast.error(t('errors.setting_update_failed'));
-                            }
-                          }}
-                        />
-                      </Label>
-                    )}
                     <Link href={`/import-csv?groupId=${groupId}`}>
                       <Button
                         variant="ghost"
