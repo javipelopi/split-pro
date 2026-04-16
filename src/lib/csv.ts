@@ -270,12 +270,6 @@ export interface ColumnMapping {
    */
   splitAmounts: number | null;
   /**
-   * "Type" — `expense`, `income`, or `transfer`. Optional. When set to
-   * `income`, the row's amount is treated as negative (a reimbursement).
-   * `transfer` rows produce a SETTLEMENT split.
-   */
-  type: number | null;
-  /**
    * "Currency" — per-row currency code (e.g. "USD", "EUR"). When mapped,
    * each row can specify its own currency. Useful for mixed-currency CSVs
    * combined with single-currency mode (auto-converted on the backend).
@@ -289,7 +283,6 @@ export const MAPPABLE_FIELDS = [
   'description',
   'currency',
   'category',
-  'type',
   'payer',
   'forWhom',
   'splitAmounts',
@@ -305,7 +298,6 @@ const HEADER_HINTS: Record<MappableField, RegExp> = {
   category: /^(category|cat|kategorie|catégorie)$/i,
   forWhom: /^(for\s*whom|participants?|members?|split\s*for|beneficiar(?:y|ies))$/i,
   splitAmounts: /^(split\s*amounts?|owed\s*amounts?|shares?)$/i,
-  type: /^(type|kind)$/i,
   currency: /^(currency|curr|währung|devise|moneda)$/i,
 };
 
@@ -318,7 +310,6 @@ export const autoDetectMapping = (headers: string[]): ColumnMapping => {
     category: null,
     forWhom: null,
     splitAmounts: null,
-    type: null,
     currency: null,
   };
 
@@ -427,10 +418,11 @@ export interface ParsedExpensePayload {
    * positive, receiver is negative.
    */
   participants: { userId: number; amount: number }[];
-  splitType: 'EQUAL' | 'EXACT' | 'SETTLEMENT';
+  splitType: 'EQUAL' | 'EXACT';
   /** True if the "Amount" column didn't match the sum of split amounts. */
   amountMismatch: boolean;
-  /** True if the row's Type column was `income` (negative expense). */
+  /** Income flag toggled by the user in the preview step (flips the
+   *  sign at submit time). Never set by the parser. */
   isIncome: boolean;
   /**
    * True when the row's payers or participants were dictated by the CSV
@@ -492,13 +484,6 @@ const parseSignedAmount = (value: string): number | null => {
  *      members, with the payer resolved via `nameMapping` (falling back to
  *      `defaultPayerId`).
  *
- *   3. **Settle Up `transfer` rows** — produce a SETTLEMENT expense with
- *      the payer as the creditor and the receiver as the debtor.
- *
- * Income rows (negative amounts) are kept positive in `amount` and the
- * `isIncome` flag is set; the caller is responsible for flipping the sign
- * when converting to the backend payload.
- *
  * Rows that can't produce a valid expense (no amount, no mapped payer) are
  * filtered out.
  */
@@ -554,11 +539,6 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
       const currencyRaw =
         null !== mapping.currency ? (row[mapping.currency]?.trim().toUpperCase() ?? '') : '';
       const rowCurrency = '' !== currencyRaw ? currencyRaw : undefined;
-
-      // --- Type (optional) ---
-      const typeRaw = null !== mapping.type ? (row[mapping.type]?.trim().toLowerCase() ?? '') : '';
-      const isIncome = 'income' === typeRaw;
-      const isTransfer = 'transfer' === typeRaw;
 
       const amountCell = row[mapping.amount!] ?? '';
 
@@ -621,43 +601,6 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
         }
       }
 
-      // --- SETTLEMENT (transfer) ---
-      if (isTransfer) {
-        // For transfers, `For whom` contains the single receiver. Fall back
-        // To parsing the forWhom column if present, else we can't process.
-        let receiverId: number | null = null;
-        if (null !== mapping.forWhom) {
-          const forWhomCell = row[mapping.forWhom] ?? '';
-          for (const name of splitMultiValue(forWhomCell)) {
-            const id = resolveName(name);
-            if (id && id !== paidBy) {
-              receiverId = id;
-              break;
-            }
-          }
-        }
-        if (null === receiverId || null === paidBy) {
-          return null;
-        }
-        return {
-          description,
-          amount: rowTotal,
-          date,
-          category,
-          currency: rowCurrency,
-          paidBy,
-          payers: [],
-          participants: [
-            { userId: paidBy, amount: rowTotal },
-            { userId: receiverId, amount: -rowTotal },
-          ],
-          splitType: 'SETTLEMENT',
-          amountMismatch: false,
-          isIncome: false,
-          locked: true,
-        };
-      }
-
       // --- Settle Up EXACT split via For whom + Split amounts ---
       if (hasSettleUpSplit) {
         const forWhomCell = row[mapping.forWhom!] ?? '';
@@ -708,7 +651,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
             participants,
             splitType: 'EXACT',
             amountMismatch,
-            isIncome,
+            isIncome: false,
             locked: true,
           };
         }
@@ -756,7 +699,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
           participants,
           splitType: 'EXACT' as const,
           amountMismatch: false,
-          isIncome,
+          isIncome: false,
           locked: multiPayer,
         };
       }
@@ -778,7 +721,7 @@ export const parseRowsToExpensePayloads = (options: ParseRowsOptions): ParsedExp
         participants,
         splitType: 'EQUAL' as const,
         amountMismatch: false,
-        isIncome,
+        isIncome: false,
         locked: multiPayer,
       };
     })
@@ -834,9 +777,9 @@ const resolveOverrideSplitType = (
 /**
  * Apply a row override on top of a parsed expense, re-running the
  * participant math when `amount`, `paidBy`, or `splitType` change on an
- * unlocked single-payer row. Locked rows (Settle Up EXACT, multi-payer,
- * SETTLEMENT) keep their parser-built payers/participants — only scalar
- * metadata can change.
+ * unlocked single-payer row. Locked rows (Settle Up EXACT, multi-payer)
+ * keep their parser-built payers/participants — only scalar metadata can
+ * change.
  */
 export const applyRowOverride = (
   expense: ParsedExpensePayload,
@@ -857,7 +800,7 @@ export const applyRowOverride = (
     let owed = override.participantOwed;
     const effectiveType = overrideSplitType
       ? resolveOverrideSplitType(overrideSplitType, groupMemberIds, groupMemberWeights)
-      : (expense.splitType as 'EQUAL' | 'EXACT');
+      : expense.splitType;
 
     if ('EQUAL' === effectiveType && owed.length > 0) {
       const perPerson = amount / owed.length;
@@ -896,7 +839,7 @@ export const applyRowOverride = (
   }
 
   // Locked rows preserve their parser-built payers/participants entirely.
-  if (expense.locked || 'SETTLEMENT' === expense.splitType) {
+  if (expense.locked) {
     return {
       ...expense,
       description,

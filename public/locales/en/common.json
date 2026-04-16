@@ -499,7 +499,6 @@
         "import_expenses": "Import {{count}} expenses",
         "select_all": "{{selected}} of {{total}} selected",
         "mismatch_warning": "{{count}} selected row(s) have a mismatch between the amount and split amounts — please double-check before importing.",
-        "transfer_label": "Settlement",
         "income_label": "Income",
         "locked_label": "Itemized",
         "edited_label": "Edited",

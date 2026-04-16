@@ -51,7 +51,6 @@ const FIELD_LABELS: Record<MappableField, string> = {
   description: 'Description',
   currency: 'Currency',
   category: 'Category',
-  type: 'Type',
   payer: 'Payer',
   forWhom: 'For whom',
   splitAmounts: 'Split amounts',
@@ -131,7 +130,6 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
   const isLocked = parsed.locked;
   const { toUIString, toSafeBigInt } = getCurrencyHelpers({ currency: groupCurrency });
-  const isSettlement = 'SETTLEMENT' === parsed.splitType;
   const [exactAmountStrs, setExactAmountStrs] = useState<Record<number, string>>({});
   const payerLabel =
     expense.payers.length > 1
@@ -182,7 +180,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newPaidBy = parseInt(e.target.value);
       // For locked or EXACT rows, push participant overrides so net positions recalculate
-      if ((isLocked || 'EXACT' === expense.splitType) && !isSettlement) {
+      if (isLocked || 'EXACT' === expense.splitType) {
         const currentOwed = expense.participants.map((p) => ({
           userId: p.userId,
           amount: p.userId === expense.paidBy ? expense.amount - p.amount : -p.amount,
@@ -198,7 +196,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
         onUpdateOverride(index, { paidBy: newPaidBy });
       }
     },
-    [index, expense, isLocked, isSettlement, onUpdateOverride],
+    [index, expense, isLocked, onUpdateOverride],
   );
   const handleCategoryChange = useCallback(
     (category: string) => {
@@ -288,13 +286,8 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           <span className="text-muted-foreground text-xs">
             {expense.date.toLocaleDateString()}
             {payerLabel ? ` · ${payerLabel}` : ''}
-            {'SETTLEMENT' === expense.splitType
-              ? ` · ${t('import_csv.steps.preview.transfer_label')}`
-              : ''}
             {expense.isIncome ? ` · ${t('import_csv.steps.preview.income_label')}` : ''}
-            {isLocked && 'SETTLEMENT' !== expense.splitType
-              ? ` · ${t('import_csv.steps.preview.locked_label')}`
-              : ''}
+            {isLocked ? ` · ${t('import_csv.steps.preview.locked_label')}` : ''}
             {hasOverride ? ` · ${t('import_csv.steps.preview.edited_label')}` : ''}
             {isDuplicate
               ? ` · ${t('import_csv.steps.preview.duplicate_label', { defaultValue: 'Potential duplicate' })}`
@@ -343,12 +336,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
 
           <div className="flex flex-col gap-1">
             <Label>{t('import_csv.steps.preview.edit.payer')}</Label>
-            <NativeSelect
-              disabled={isSettlement}
-              value={expense.paidBy}
-              onChange={handlePayerChange}
-              className="w-full"
-            >
+            <NativeSelect value={expense.paidBy} onChange={handlePayerChange} className="w-full">
               {groupMembers.map((member) => (
                 <NativeSelectOption key={member.id} value={member.id}>
                   {member.name ?? member.email ?? `User ${member.id}`}
@@ -357,97 +345,93 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
             </NativeSelect>
           </div>
 
-          {!isSettlement && (
-            <>
-              <div className="flex flex-col gap-1">
-                <Label>
-                  {t('import_csv.steps.preview.edit.split_type', { defaultValue: 'Split type' })}
-                </Label>
-                <NativeSelect
-                  value={
-                    'EXACT' === expense.splitType
-                      ? 'SPLIT'
-                      : 'EQUAL' === expense.splitType
-                        ? 'EQUAL'
-                        : 'DEFAULT'
-                  }
-                  onChange={handleSplitTypeChange}
-                  className="w-full"
-                >
-                  <NativeSelectOption value="DEFAULT">
-                    {t('import_csv.steps.preview.edit.split_default', {
-                      defaultValue: 'Default (group settings)',
-                    })}
-                  </NativeSelectOption>
-                  <NativeSelectOption value="EQUAL">
-                    {t('import_csv.steps.preview.edit.split_equal', {
-                      defaultValue: 'Equal (even split)',
-                    })}
-                  </NativeSelectOption>
-                  <NativeSelectOption value="SPLIT">
-                    {t('import_csv.steps.preview.edit.split_split', {
-                      defaultValue: 'Split (member weights)',
-                    })}
-                  </NativeSelectOption>
-                </NativeSelect>
-              </div>
+          <div className="flex flex-col gap-1">
+            <Label>
+              {t('import_csv.steps.preview.edit.split_type', { defaultValue: 'Split type' })}
+            </Label>
+            <NativeSelect
+              value={
+                'EXACT' === expense.splitType
+                  ? 'SPLIT'
+                  : 'EQUAL' === expense.splitType
+                    ? 'EQUAL'
+                    : 'DEFAULT'
+              }
+              onChange={handleSplitTypeChange}
+              className="w-full"
+            >
+              <NativeSelectOption value="DEFAULT">
+                {t('import_csv.steps.preview.edit.split_default', {
+                  defaultValue: 'Default (group settings)',
+                })}
+              </NativeSelectOption>
+              <NativeSelectOption value="EQUAL">
+                {t('import_csv.steps.preview.edit.split_equal', {
+                  defaultValue: 'Equal (even split)',
+                })}
+              </NativeSelectOption>
+              <NativeSelectOption value="SPLIT">
+                {t('import_csv.steps.preview.edit.split_split', {
+                  defaultValue: 'Split (member weights)',
+                })}
+              </NativeSelectOption>
+            </NativeSelect>
+          </div>
 
-              <div className="flex flex-col gap-1">
-                <Label>
-                  {t('import_csv.steps.preview.edit.participants', {
-                    defaultValue: 'Participants',
-                  })}
-                </Label>
-                <div className="flex flex-col gap-1.5">
-                  {groupMembers.map((member) => {
-                    const isParticipating = participantIds.has(member.id);
-                    const owed = participantOwed.find((p) => p.userId === member.id);
-                    const isExact = 'EXACT' === expense.splitType;
-                    return (
-                      <div key={member.id} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={isParticipating}
-                          onCheckedChange={() => handleParticipantToggle(member.id)}
+          <div className="flex flex-col gap-1">
+            <Label>
+              {t('import_csv.steps.preview.edit.participants', {
+                defaultValue: 'Participants',
+              })}
+            </Label>
+            <div className="flex flex-col gap-1.5">
+              {groupMembers.map((member) => {
+                const isParticipating = participantIds.has(member.id);
+                const owed = participantOwed.find((p) => p.userId === member.id);
+                const isExact = 'EXACT' === expense.splitType;
+                return (
+                  <div key={member.id} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={isParticipating}
+                      onCheckedChange={() => handleParticipantToggle(member.id)}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {member.name ?? member.email ?? `User ${member.id}`}
+                    </span>
+                    {isParticipating &&
+                      (isExact ? (
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          className="h-7 w-24 text-right text-sm"
+                          value={exactAmountStrs[member.id] ?? (owed?.amount ?? 0).toFixed(2)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setExactAmountStrs((prev) => ({
+                              ...prev,
+                              [member.id]: e.target.value,
+                            }))
+                          }
+                          onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && val >= 0) {
+                              handleParticipantAmountCommit(member.id, val);
+                            }
+                            setExactAmountStrs((prev) => {
+                              const { [member.id]: _, ...rest } = prev;
+                              return rest;
+                            });
+                          }}
                         />
-                        <span className="min-w-0 flex-1 truncate text-sm">
-                          {member.name ?? member.email ?? `User ${member.id}`}
+                      ) : (
+                        <span className="text-muted-foreground w-24 text-right text-sm">
+                          {toUIString(toSafeBigInt(owed?.amount ?? 0))}
                         </span>
-                        {isParticipating &&
-                          (isExact ? (
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              className="h-7 w-24 text-right text-sm"
-                              value={exactAmountStrs[member.id] ?? (owed?.amount ?? 0).toFixed(2)}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                setExactAmountStrs((prev) => ({
-                                  ...prev,
-                                  [member.id]: e.target.value,
-                                }))
-                              }
-                              onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                                const val = parseFloat(e.target.value);
-                                if (!isNaN(val) && val >= 0) {
-                                  handleParticipantAmountCommit(member.id, val);
-                                }
-                                setExactAmountStrs((prev) => {
-                                  const { [member.id]: _, ...rest } = prev;
-                                  return rest;
-                                });
-                              }}
-                            />
-                          ) : (
-                            <span className="text-muted-foreground w-24 text-right text-sm">
-                              {toUIString(toSafeBigInt(owed?.amount ?? 0))}
-                            </span>
-                          ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
+                      ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           <div className="flex flex-col gap-1">
             <Label>{t('import_csv.steps.preview.edit.category')}</Label>
@@ -513,7 +497,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     category: null,
     forWhom: null,
     splitAmounts: null,
-    type: null,
     currency: null,
   });
 
@@ -858,7 +841,6 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     const splitTypeMap = {
       EQUAL: SplitType.EQUAL,
       EXACT: SplitType.EXACT,
-      SETTLEMENT: SplitType.SETTLEMENT,
     } as const;
 
     const selected = filterSelectedExpenses(effectiveExpenses, selectedRows);

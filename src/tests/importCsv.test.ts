@@ -135,7 +135,6 @@ describe('autoDetectMapping (Settle Up format)', () => {
     expect(mapping.description).toBe(5);
     expect(mapping.category).toBe(6);
     expect(mapping.date).toBe(7);
-    expect(mapping.type).toBe(11);
   });
 
   it('does not confuse "Amount" with "Converted amount"', () => {
@@ -228,45 +227,6 @@ describe('parseRowsToExpensePayloads', () => {
     ].join('\n');
     const [expense] = run(csv);
     expect(expense!.amountMismatch).toBe(true);
-  });
-
-  it('marks income rows with isIncome and keeps amount positive', () => {
-    // Settle Up income rows use negative numbers. The parser should expose
-    // A positive amount + isIncome=true so the caller can flip the sign.
-    const csv = [
-      '"Who paid","Amount","For whom","Split amounts","Type"',
-      '"Laura","-263","Francisco;Laura","-152.25;-110.75","income"',
-    ].join('\n');
-    const [expense] = run(csv);
-
-    expect(expense!.isIncome).toBe(true);
-    expect(expense!.amount).toBeCloseTo(263);
-    expect(expense!.splitType).toBe('EXACT');
-
-    const byId = Object.fromEntries(expense!.participants.map((p) => [p.userId, p.amount]));
-    // Laura paid 263 (abs), owed 110.75 → +152.25.
-    expect(byId[LAURA]).toBeCloseTo(152.25);
-    expect(byId[FRANCISCO]).toBeCloseTo(-152.25);
-  });
-
-  it('produces a SETTLEMENT payload for transfer rows', () => {
-    // Francisco paid 4940.55 to Laura (settling a debt).
-    const csv = [
-      '"Who paid","Amount","For whom","Split amounts","Purpose","Type"',
-      '"Francisco","4940.55","Laura","4940.55","Pago de deudas","transfer"',
-    ].join('\n');
-    const [expense] = run(csv);
-
-    expect(expense).toBeDefined();
-    expect(expense!.splitType).toBe('SETTLEMENT');
-    expect(expense!.paidBy).toBe(FRANCISCO);
-    expect(expense!.amount).toBeCloseTo(4940.55);
-    expect(expense!.amountMismatch).toBe(false);
-
-    // Settlement sign convention (from useSettlement): payer positive, receiver negative.
-    const byId = Object.fromEntries(expense!.participants.map((p) => [p.userId, p.amount]));
-    expect(byId[FRANCISCO]).toBeCloseTo(4940.55);
-    expect(byId[LAURA]).toBeCloseTo(-4940.55);
   });
 
   it('falls back to the default payer when the CSV payer name is unmapped', () => {
@@ -562,24 +522,5 @@ describe('applyRowOverride', () => {
     expect(updated.paidBy).toBe(FRANCISCO);
     // Participants untouched.
     expect(updated.participants).toEqual(locked.participants);
-  });
-
-  it('preserves participants on SETTLEMENT rows regardless of overrides', () => {
-    const settlement: ParsedExpensePayload = {
-      ...baseUnlocked,
-      splitType: 'SETTLEMENT',
-      participants: [
-        { userId: LAURA, amount: 100 },
-        { userId: FRANCISCO, amount: -100 },
-      ],
-      locked: true,
-    };
-    const updated = applyRowOverride(
-      settlement,
-      { description: 'Rent settlement' },
-      GROUP_MEMBER_IDS,
-    );
-    expect(updated.description).toBe('Rent settlement');
-    expect(updated.participants).toEqual(settlement.participants);
   });
 });
