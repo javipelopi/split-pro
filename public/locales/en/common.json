@@ -502,6 +502,7 @@
         "income_label": "Income",
         "locked_label": "Itemized",
         "edited_label": "Edited",
+        "converts_to": "→ {{currency}}",
         "edit": {
           "description": "Description",
           "amount": "Amount",

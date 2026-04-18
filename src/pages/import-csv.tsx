@@ -92,6 +92,7 @@ interface PreviewRowProps {
   groupMembers: { id: number; name: string | null; email: string | null }[];
   groupMemberWeights: Record<number, number>;
   groupCurrency: string;
+  singleCurrencyMode: boolean;
   isSelected: boolean;
   isExpanded: boolean;
   isLast: boolean;
@@ -113,6 +114,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   groupMembers,
   groupMemberWeights,
   groupCurrency,
+  singleCurrencyMode,
   isSelected,
   isExpanded,
   isLast,
@@ -129,7 +131,9 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
   const payer = groupMembers.find((m) => m.id === expense.paidBy);
   const displayAmount = expense.isIncome ? -expense.amount : expense.amount;
   const isLocked = parsed.locked;
-  const { toUIString, toSafeBigInt } = getCurrencyHelpers({ currency: groupCurrency });
+  const rowCurrency = expense.currency ?? groupCurrency;
+  const showConversionHint = singleCurrencyMode && rowCurrency !== groupCurrency;
+  const { toUIString, toSafeBigInt } = getCurrencyHelpers({ currency: rowCurrency });
   const [exactAmountStrs, setExactAmountStrs] = useState<Record<number, string>>({});
   const payerLabel =
     expense.payers.length > 1
@@ -162,10 +166,10 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
         onAmountStrChange(index, strValue);
       }
       if (undefined !== bigIntValue) {
-        onUpdateOverride(index, { amount: bigIntToDecimal(bigIntValue, groupCurrency) });
+        onUpdateOverride(index, { amount: bigIntToDecimal(bigIntValue, rowCurrency) });
       }
     },
-    [index, onAmountStrChange, onUpdateOverride, groupCurrency],
+    [index, onAmountStrChange, onUpdateOverride, rowCurrency],
   );
   const handleDateChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -295,10 +299,16 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           </span>
         </button>
         <span
-          className={`ml-2 shrink-0 font-medium ${expense.amountMismatch ? 'text-yellow-500' : ''}`}
+          className={`ml-2 shrink-0 text-right font-medium ${expense.amountMismatch ? 'text-yellow-500' : ''}`}
         >
-          {getCurrencyHelpers({ currency: groupCurrency }).toUIString(
-            getCurrencyHelpers({ currency: groupCurrency }).toSafeBigInt(displayAmount),
+          <span>{toUIString(toSafeBigInt(displayAmount))}</span>
+          {showConversionHint && (
+            <span className="text-muted-foreground block text-xs font-normal">
+              {t('import_csv.steps.preview.converts_to', {
+                currency: groupCurrency,
+                defaultValue: `→ ${groupCurrency}`,
+              })}
+            </span>
           )}
         </span>
       </div>
@@ -313,7 +323,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           <div className="flex flex-col gap-1">
             <Label>{t('import_csv.steps.preview.edit.amount')}</Label>
             <CurrencyInput
-              currency={groupCurrency}
+              currency={rowCurrency}
               disabled={isLocked}
               strValue={rowAmountStr ?? decimalToDisplayStr(expense.amount)}
               onValueChange={handleAmountChange}
@@ -546,6 +556,8 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
     const group = groupsQuery.data?.find((g) => g.group.id === selectedGroupId);
     return group?.group.defaultCurrency ?? 'USD';
   }, [groupsQuery.data, selectedGroupId]);
+
+  const singleCurrencyMode = groupDetailQuery.data?.singleCurrencyMode ?? false;
 
   // Extract all unique names that need to be mapped to group members:
   // Values from the `Who paid` column (legacy + Settle Up multi-payer) AND
@@ -1333,6 +1345,7 @@ const ImportCsvPage: NextPageWithUser = ({ user }) => {
                     groupMembers={groupMembers}
                     groupMemberWeights={groupMemberWeights}
                     groupCurrency={groupCurrency}
+                    singleCurrencyMode={singleCurrencyMode}
                     isSelected={selectedRows.has(i)}
                     isExpanded={expandedRows.has(i)}
                     isLast={i === effectiveExpenses.length - 1}
