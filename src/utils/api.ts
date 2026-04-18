@@ -10,33 +10,7 @@ import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server';
 import superjson from 'superjson';
 
 import { type AppRouter } from '~/server/api/root';
-
-// React Query's default hashKey uses JSON.stringify, which throws on BigInt.
-// TRPC puts procedure inputs into the queryKey verbatim, so any procedure with
-// A BigInt input (e.g. findDuplicates amount) crashes the page on render.
-const isPlainObject = (val: unknown): val is Record<string, unknown> => {
-  if (null === val || 'object' !== typeof val || Array.isArray(val)) {
-    return false;
-  }
-  const proto = Object.getPrototypeOf(val);
-  return null === proto || Object.prototype === proto;
-};
-
-const queryKeyHashFn = (queryKey: unknown): string =>
-  JSON.stringify(queryKey, (_, val) => {
-    if ('bigint' === typeof val) {
-      return `${val}n`;
-    }
-    if (isPlainObject(val)) {
-      return Object.keys(val)
-        .sort()
-        .reduce<Record<string, unknown>>((acc, k) => {
-          acc[k] = val[k];
-          return acc;
-        }, {});
-    }
-    return val;
-  });
+import { queryKeyHashFn } from '~/utils/queryKeyHash';
 
 export const getBaseUrl = () => {
   if ('undefined' !== typeof window) {
