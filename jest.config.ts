@@ -163,6 +163,8 @@ const config: Config = {
   // The test environment that will be used for testing
   testEnvironment: 'jsdom',
 
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/e2e/'],
+
   // Options that will be passed to the testEnvironment
   // testEnvironmentOptions: {},
 

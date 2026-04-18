@@ -45,6 +45,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+tests/e2e/.auth/
+
 **/public/workbox-*.js
 **/public/workbox-*.js.map
 **/public/sw.js

@@ -1,0 +1,98 @@
+name: E2E
+
+# Playwright smoke tests covering the critical paths that the unit suite
+# can't catch (runtime crashes in real browser rendering, e.g. BigInt
+# serialization in the add-expense page). Gates PRs in the Check flow.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://splitpro:password@localhost:5432/splitpro
+      NEXTAUTH_SECRET: ci-e2e-test-secret
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL_INTERNAL: http://localhost:3000
+      ENABLE_SENDING_INVITES: 'false'
+      DISABLE_EMAIL_SIGNUP: 'false'
+      INVITE_ONLY: 'false'
+      SKIP_ENV_VALIDATION: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start Postgres with pg_cron
+        # pg_cron must be preloaded for the migration to apply; matching the
+        # flags docker/dev/compose.yml uses so dev and CI stay in sync.
+        run: |
+          docker run -d \
+            --name splitpro-e2e-db \
+            -e POSTGRES_USER=splitpro \
+            -e POSTGRES_PASSWORD=password \
+            -e POSTGRES_DB=splitpro \
+            -p 5432:5432 \
+            ossapps/postgres:17.7-trixie \
+            postgres \
+            -c shared_preload_libraries=pg_cron \
+            -c cron.database_name=splitpro \
+            -c cron.timezone=UTC
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..60}; do
+            if PGPASSWORD=password psql -h localhost -U splitpro -d splitpro -c 'SELECT 1' >/dev/null 2>&1; then
+              echo "postgres is up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Apply migrations
+        run: pnpm prisma migrate deploy
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run E2E smoke tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Dump Postgres logs
+        if: always()
+        run: docker logs splitpro-e2e-db 2>&1 | tail -100 || true
+
+      - name: Stop Postgres
+        if: always()
+        run: docker rm -f splitpro-e2e-db || true

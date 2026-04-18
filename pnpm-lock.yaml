@@ -36,13 +36,13 @@ importers:
         version: 13.8.0(react@19.2.1)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
-        version: 1.0.7(@prisma/client@6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3))(next-auth@4.24.13(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))
+        version: 1.0.7(@prisma/client@6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3))(next-auth@4.24.13(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))
       '@prisma/client':
         specifier: ^6.16.2
         version: 6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3)
       '@serwist/next':
         specifier: ^9.2.1
-        version: 9.2.3(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(typescript@5.7.3)
+        version: 9.2.3(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(typescript@5.7.3)
       '@t3-oss/env-nextjs':
         specifier: ^0.13.8
         version: 0.13.10(typescript@5.7.3)(zod@3.25.76)
@@ -54,7 +54,7 @@ importers:
         version: 11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3)
       '@trpc/next':
         specifier: ^11.2.0
-        version: 11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/react-query@11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3)
+        version: 11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/react-query@11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3)
       '@trpc/react-query':
         specifier: ^11.2.0
         version: 11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3)
@@ -111,16 +111,16 @@ importers:
         version: 5.1.6
       next:
         specifier: 15.5.15
-        version: 15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        version: 15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.13(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        version: 4.24.13(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       next-i18next:
         specifier: ^15.4.2
-        version: 15.4.3(i18next@25.7.3(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-i18next@15.7.4(i18next@25.7.3(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(react@19.2.1)
+        version: 15.4.3(i18next@25.7.3(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-i18next@15.7.4(i18next@25.7.3(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(react@19.2.1)
       next-themes:
         specifier: ^0.2.1
-        version: 0.2.1(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        version: 0.2.1(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       nodemailer:
         specifier: ^7.0.13
         version: 7.0.13
@@ -176,6 +176,9 @@ importers:
       '@faker-js/faker':
         specifier: 10.1.0
         version: 10.1.0
+      '@playwright/test':
+        specifier: ^1.59.1
+        version: 1.59.1
       '@tailwindcss/postcss':
         specifier: ^4.1.10
         version: 4.1.18
@@ -1171,6 +1174,11 @@ packages:
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
+
+  '@playwright/test@1.59.1':
+    resolution: {integrity: sha512-PG6q63nQg5c9rIi4/Z5lR5IVF7yU5MqmKaPOe0HSc0O2cX1fPi96sUQu5j7eo4gKCkB2AnNGoWt7y4/Xx3Kcqg==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   '@prisma/client@6.19.1':
     resolution: {integrity: sha512-4SXj4Oo6HyQkLUWT8Ke5R0PTAfVOKip5Roo+6+b2EDTkFg5be0FnBWiuRJc0BC0sRQIWGMLKW1XguhVfW/z3/A==}
@@ -2905,6 +2913,11 @@ packages:
   fs.realpath@1.0.0:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
 
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -3720,6 +3733,16 @@ packages:
   plaid@38.1.0:
     resolution: {integrity: sha512-5CxHxiTEJUEohvxOhfNclWIrIKJYN6pODBoF7X6Iwr9nYYUsk2XsYzOMUMBybAFRTcanU2C2F5STPmsNxgT0PQ==}
     engines: {node: '>=10.0.0'}
+
+  playwright-core@1.59.1:
+    resolution: {integrity: sha512-HBV/RJg81z5BiiZ9yPzIiClYV/QMsDCKUyogwH9p3MCP6IYjUFu/MActgYAvK0oWyV9NlwM3GLBjADyWgydVyg==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.59.1:
+    resolution: {integrity: sha512-C8oWjPR3F81yljW9o5OxcWzfh6avkVwDD2VYdwIGqTkl+OGFISgypqzfu7dOe4QNLL2aqcWBmI3PMtLIK233lw==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   postcss@8.4.31:
     resolution: {integrity: sha512-PS08Iboia9mts/2ygV3eLpY5ghnUcfLV/EXTOW1E2qYxJKGGBUtNjN76FYHnMs36RmARn41bC0AZmn+rR0OVpQ==}
@@ -5137,10 +5160,10 @@ snapshots:
       '@tybys/wasm-util': 0.10.0
     optional: true
 
-  '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3))(next-auth@4.24.13(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))':
+  '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3))(next-auth@4.24.13(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))':
     dependencies:
       '@prisma/client': 6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3)
-      next-auth: 4.24.13(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      next-auth: 4.24.13(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
 
   '@next/env@15.5.15': {}
 
@@ -5255,6 +5278,10 @@ snapshots:
     optional: true
 
   '@pkgr/core@0.2.9': {}
+
+  '@playwright/test@1.59.1':
+    dependencies:
+      playwright: 1.59.1
 
   '@prisma/client@6.19.1(prisma@6.19.1(typescript@5.7.3))(typescript@5.7.3)':
     optionalDependencies:
@@ -6101,14 +6128,14 @@ snapshots:
     optionalDependencies:
       typescript: 5.7.3
 
-  '@serwist/next@9.2.3(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(typescript@5.7.3)':
+  '@serwist/next@9.2.3(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(typescript@5.7.3)':
     dependencies:
       '@serwist/build': 9.2.3(typescript@5.7.3)
       '@serwist/webpack-plugin': 9.2.3(typescript@5.7.3)
       '@serwist/window': 9.2.3(typescript@5.7.3)
       chalk: 5.6.2
       glob: 10.5.0
-      next: 15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      next: 15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       serwist: 9.2.3(typescript@5.7.3)
       zod: 4.1.12
     optionalDependencies:
@@ -6242,11 +6269,11 @@ snapshots:
       '@trpc/server': 11.8.0(typescript@5.7.3)
       typescript: 5.7.3
 
-  '@trpc/next@11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/react-query@11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3)':
+  '@trpc/next@11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/react-query@11.8.0(@tanstack/react-query@5.90.12(react@19.2.1))(@trpc/client@11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(@trpc/server@11.8.0(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3)':
     dependencies:
       '@trpc/client': 11.8.0(@trpc/server@11.8.0(typescript@5.7.3))(typescript@5.7.3)
       '@trpc/server': 11.8.0(typescript@5.7.3)
-      next: 15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      next: 15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
       typescript: 5.7.3
@@ -6970,6 +6997,9 @@ snapshots:
       once: 1.4.0
 
   fs.realpath@1.0.0: {}
+
+  fsevents@2.3.2:
+    optional: true
 
   fsevents@2.3.3:
     optional: true
@@ -7758,13 +7788,13 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  next-auth@4.24.13(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+  next-auth@4.24.13(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(nodemailer@7.0.13)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     dependencies:
       '@babel/runtime': 7.27.6
       '@panva/hkdf': 1.2.1
       cookie: 0.7.2
       jose: 4.15.9
-      next: 15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      next: 15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       oauth: 0.9.15
       openid-client: 5.7.1
       preact: 10.28.3
@@ -7775,7 +7805,7 @@ snapshots:
     optionalDependencies:
       nodemailer: 7.0.13
 
-  next-i18next@15.4.3(i18next@25.7.3(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-i18next@15.7.4(i18next@25.7.3(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(react@19.2.1):
+  next-i18next@15.4.3(i18next@25.7.3(typescript@5.7.3))(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-i18next@15.7.4(i18next@25.7.3(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3))(react@19.2.1):
     dependencies:
       '@babel/runtime': 7.27.6
       '@types/hoist-non-react-statics': 3.3.6
@@ -7783,17 +7813,17 @@ snapshots:
       hoist-non-react-statics: 3.3.2
       i18next: 25.7.3(typescript@5.7.3)
       i18next-fs-backend: 2.6.0
-      next: 15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      next: 15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       react: 19.2.1
       react-i18next: 15.7.4(i18next@25.7.3(typescript@5.7.3))(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(typescript@5.7.3)
 
-  next-themes@0.2.1(next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+  next-themes@0.2.1(next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1))(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     dependencies:
-      next: 15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      next: 15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 
-  next@15.5.15(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+  next@15.5.15(@babel/core@7.28.3)(@playwright/test@1.59.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     dependencies:
       '@next/env': 15.5.15
       '@swc/helpers': 0.5.15
@@ -7811,6 +7841,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 15.5.15
       '@next/swc-win32-arm64-msvc': 15.5.15
       '@next/swc-win32-x64-msvc': 15.5.15
+      '@playwright/test': 1.59.1
       sharp: 0.34.5
     transitivePeerDependencies:
       - '@babel/core'
@@ -7975,6 +8006,14 @@ snapshots:
       axios: 1.15.0
     transitivePeerDependencies:
       - debug
+
+  playwright-core@1.59.1: {}
+
+  playwright@1.59.1:
+    dependencies:
+      playwright-core: 1.59.1
+    optionalDependencies:
+      fsevents: 2.3.2
 
   postcss@8.4.31:
     dependencies:
